@@ -1,6 +1,7 @@
 rust: stable
 language: rust
 cache: cargo
+if: tag IS present
 
 env:
   global: EXECUTABLE_NAME=expt01
@@ -37,7 +38,6 @@ script:
   - cargo build --release --target $TARGET
 
 before_deploy: |
-  find target/$TARGET/release/build -name *$LIBRARY_EXTENTION
   mkdir $EXECUTABLE_NAME
   mv target/$TARGET/release/$EXECUTABLE_NAME$EXECUTABLE_EXTENTION $EXECUTABLE_NAME
   mv target/$TARGET/release/build/*/out/*$LIBRARY_EXTENTION $EXECUTABLE_NAME
