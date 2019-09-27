@@ -5,6 +5,7 @@ authors = ["saintech <mail@saintech.ru>"]
 edition = "2018"
 license = "WTFPL"
 repository = "https://github.com/saintech/expt01"
+readme="README.md"
 
 [dependencies]
 tcod = { version = "0.15", features = ["serialization"] }
