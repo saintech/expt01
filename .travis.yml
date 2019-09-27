@@ -1,0 +1,56 @@
+rust: stable
+language: rust
+cache: cargo
+
+env:
+  global: EXECUTABLE_NAME=expt01
+
+matrix:
+  include:
+    - os: linux
+      env:
+        - TARGET=x86_64-unknown-linux-gnu
+        - LIBRARY_EXTENTION=.so
+        - ARCHIVE_CMD="tar czvf"
+        - ARCHIVE_EXTENTION=.tar.gz
+      install: sudo apt-get install libsdl2-dev
+    - os: osx
+      env:
+        - TARGET=x86_64-apple-darwin
+        - LIBRARY_EXTENTION=.dylib
+        - ARCHIVE_CMD="tar czvf"
+        - ARCHIVE_EXTENTION=.tar.gz
+      install: brew install sdl2
+    - os: windows
+      env:
+        - TARGET=x86_64-pc-windows-msvc
+        - EXECUTABLE_EXTENTION=.exe
+        - LIBRARY_EXTENTION=.dll
+        - ARCHIVE_CMD="7z a"
+        - ARCHIVE_EXTENTION=.zip
+        - RUSTFLAGS="-C link-arg=/SUBSYSTEM:WINDOWS -C link-arg=/ENTRY:mainCRTStartup"
+
+install:
+  - rustup target add $TARGET
+
+script:
+  - cargo build --release --target $TARGET
+
+before_deploy: |
+  find target/$TARGET/release/build -name *$LIBRARY_EXTENTION
+  mkdir $EXECUTABLE_NAME
+  mv target/$TARGET/release/$EXECUTABLE_NAME$EXECUTABLE_EXTENTION $EXECUTABLE_NAME
+  mv target/$TARGET/release/build/*/out/*$LIBRARY_EXTENTION $EXECUTABLE_NAME
+  mv *.png $EXECUTABLE_NAME
+  $ARCHIVE_CMD $EXECUTABLE_NAME-$TARGET$ARCHIVE_EXTENTION $EXECUTABLE_NAME
+  ls -la $EXECUTABLE_NAME
+
+deploy:
+  api_key: $GITHUB_ACCESS_TOKEN
+  file: ${EXECUTABLE_NAME}-${TARGET}*
+  file_glob: true
+  on:
+    branch: master
+    tags: true
+  provider: releases
+  skip_cleanup: true
