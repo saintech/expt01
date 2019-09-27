@@ -8,7 +8,7 @@ This is experiments with roguelike library called **[libtcod](https://github.com
 
 ## Screenshots
 
-![screenshot-01](https://user-images.githubusercontent.com/4853612/65738698-69e40b80-e0eb-11e9-9150-a8fd01dda6ce.png)
+![screenshot-01](https://user-images.githubusercontent.com/4853612/65739522-3c4c9180-e0ee-11e9-9e45-ca7782350e77.png)
 
 ![screenshot-02](https://user-images.githubusercontent.com/4853612/65738723-7ec09f00-e0eb-11e9-9111-69e9371b8088.png)
 
