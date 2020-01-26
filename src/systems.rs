@@ -6,23 +6,65 @@ use std::{error::Error, fs, io::Read as _, io::Write as _};
 use tcod::{colors, console, input, Console as _};
 
 // *** Input System ***
-pub fn update_input_state(_world: &mut World, tcod: &mut Tcod) {
-    tcod.key = Default::default();
-    match input::check_for_event(input::MOUSE | input::KEY_PRESS) {
-        Some((_, input::Event::Key(k))) => tcod.key = k,
-        Some((_, input::Event::Mouse(m))) => tcod.mouse = m,
-        _ => (),
+pub fn update_input_state(world: &mut World, _tcod: &mut Tcod) {
+    use input::KeyCode::*;
+    world.player.action = match world.player.state {
+        PlayerState::InMenu => match input::check_for_event(input::MOUSE | input::KEY_PRESS) {
+            Some((_, input::Event::Key(key))) => match (key.code, key.printable) {
+                (Escape, _) => PlayerAction::Cancel,
+                (_, printable) => printable_to_action(printable),
+            },
+            _ => PlayerAction::None,
+        },
+
+        PlayerState::MakingTurn | PlayerState::TargetingTile => {
+            match input::check_for_event(input::MOUSE | input::KEY_PRESS) {
+                Some((_, input::Event::Key(key))) => match (key.code, key.printable) {
+                    (Escape, _) => PlayerAction::Cancel,
+                    (Up, _) | (Number8, _) => PlayerAction::GoToUp,
+                    (Down, _) | (NumPad2, _) => PlayerAction::GoToDown,
+                    (Left, _) | (NumPad4, _) => PlayerAction::GoToLeft,
+                    (Right, _) | (NumPad6, _) => PlayerAction::GoToRight,
+                    (Home, _) | (NumPad7, _) => PlayerAction::GoToUpLeft,
+                    (PageUp, _) | (NumPad9, _) => PlayerAction::GoToUpRight,
+                    (End, _) | (NumPad1, _) => PlayerAction::GoToDownLeft,
+                    (PageDown, _) | (NumPad3, _) => PlayerAction::GoToDownRight,
+                    (NumPad5, _) => PlayerAction::SkipTurn,
+                    (Enter, _) => PlayerAction::InteractWithMap,
+                    (F1, _) => PlayerAction::OpenHelp,
+                    (_, 'i') => PlayerAction::OpenInventory,
+                    (_, 'c') => PlayerAction::OpenCharInfo,
+                    (_, 'd') => PlayerAction::DropItem,
+                    _ => PlayerAction::None,
+                },
+                Some((_, input::Event::Mouse(m))) => {
+                    match (m.lbutton_pressed, m.rbutton_pressed, m.cx, m.cy) {
+                        (false, true, ..) => PlayerAction::Cancel,
+                        (false, false, x, y) => PlayerAction::LookAt(x as i32, y as i32),
+                        (true, _, x, y) => PlayerAction::ClickAt(x as i32, y as i32),
+                    }
+                }
+                _ => PlayerAction::None,
+            }
+        }
     }
+}
+
+fn printable_to_action(key: char) -> PlayerAction {
+    b"123456789abcdefghijklmnopqrstuvwxyz"
+        .iter()
+        .position(|&val| val as char == key)
+        .map_or(PlayerAction::None, |v| PlayerAction::SelectMenuItem(v))
 }
 
 // *** Map Interaction System ***
 pub fn update_map_interaction_state(world: &mut World, tcod: &mut Tcod) {
-    if world.player.action == PlayerAction::StartGame {
+    if world.player.state != PlayerState::MakingTurn {
         return;
     }
     let player_indexes = &world.entity_indexes[&PLAYER_ID];
     let player_character = &world.characters[player_indexes.character.unwrap()];
-    if (tcod.key.code != input::KeyCode::Enter) || !player_character.alive {
+    if (world.player.action != PlayerAction::InteractWithMap) || !player_character.alive {
         return;
     }
     let player_symbol = &world.symbols[player_indexes.symbol.unwrap()];
@@ -81,21 +123,26 @@ pub fn pick_item_up(object_id: u32, world: &mut World) {
 }
 
 // *** Player Action System ***
-pub fn player_move_or_attack(world: &mut World, tcod: &mut Tcod) {
-    if world.player.action == PlayerAction::StartGame {
+pub fn player_move_or_attack(world: &mut World, _tcod: &mut Tcod) {
+    if world.player.state != PlayerState::MakingTurn {
         return;
     }
     let player_indexes = &world.entity_indexes[&PLAYER_ID];
     let player_character = &world.characters[player_indexes.character.unwrap()];
-    if (tcod.key.code == input::KeyCode::NumPad5) && player_character.alive {
-        world.player.action = PlayerAction::TookTurn;
+    if !player_character.alive {
         return;
     }
-    let (dx, dy) = key_to_delta(tcod.key);
-    if ((dx, dy) == (0, 0)) || !player_character.alive {
-        world.player.action = PlayerAction::DidntTakeTurn;
-        return;
-    }
+    let (dx, dy) = match world.player.action {
+        PlayerAction::GoToUp => (0, -1),
+        PlayerAction::GoToDown => (0, 1),
+        PlayerAction::GoToLeft => (-1, 0),
+        PlayerAction::GoToRight => (1, 0),
+        PlayerAction::GoToUpLeft => (-1, -1),
+        PlayerAction::GoToUpRight => (1, -1),
+        PlayerAction::GoToDownLeft => (-1, 1),
+        PlayerAction::GoToDownRight => (1, 1),
+        _ => return,
+    };
     // the coordinates the player is moving to/attacking
     let x = world.symbols[player_indexes.symbol.unwrap()].x + dx;
     let y = world.symbols[player_indexes.symbol.unwrap()].y + dy;
@@ -125,34 +172,17 @@ pub fn player_move_or_attack(world: &mut World, tcod: &mut Tcod) {
             move_by(PLAYER_ID, dx, dy, world);
         }
     }
-    world.player.action = PlayerAction::TookTurn;
-}
-
-fn key_to_delta(key: input::Key) -> (i32, i32) {
-    use input::Key;
-    use input::KeyCode::*;
-    match key {
-        Key { code: Up, .. } | Key { code: NumPad8, .. } => (0, -1),
-        Key { code: Down, .. } | Key { code: NumPad2, .. } => (0, 1),
-        Key { code: Left, .. } | Key { code: NumPad4, .. } => (-1, 0),
-        Key { code: Right, .. } | Key { code: NumPad6, .. } => (1, 0),
-        Key { code: Home, .. } | Key { code: NumPad7, .. } => (-1, -1),
-        Key { code: PageUp, .. } | Key { code: NumPad9, .. } => (1, -1),
-        Key { code: End, .. } | Key { code: NumPad1, .. } => (-1, 1),
-        Key { code: PageDown, .. } | Key { code: NumPad3, .. } => (1, 1),
-        _ => (0, 0),
-    }
 }
 
 // *** AI System ***
 pub fn update_ai_turn_state(world: &mut World, tcod: &mut Tcod) {
-    if world.player.action == PlayerAction::StartGame {
+    if world.player.state != PlayerState::MakingTurn {
         return;
     }
     // let monsters take their turn
     let player_indexes = &world.entity_indexes[&PLAYER_ID];
     let player = &world.characters[player_indexes.character.unwrap()];
-    if player.alive && world.player.action == PlayerAction::TookTurn {
+    if player.alive && player_action_is_turn(world.player.action) {
         let ai_ids: Vec<_> = world
             .entity_indexes
             .iter()
@@ -162,6 +192,15 @@ pub fn update_ai_turn_state(world: &mut World, tcod: &mut Tcod) {
             ai_take_turn(id, world, &tcod.fov);
         }
     }
+}
+
+fn player_action_is_turn(action: PlayerAction) -> bool {
+    use PlayerAction::*;
+    return match action {
+        GoToUp | GoToDown | GoToLeft | GoToRight | GoToUpLeft | GoToUpRight | GoToDownLeft
+        | GoToDownRight | SkipTurn => true,
+        _ => false,
+    };
 }
 
 fn ai_take_turn(id: u32, world: &mut World, fov_map: &tcod::Map) {
@@ -247,12 +286,12 @@ fn ai_confused(monster_id: u32, world: &mut World, previous_ai: Box<Ai>, num_tur
 }
 // *** Inventory System ***
 pub fn update_inventory_state(world: &mut World, tcod: &mut Tcod) {
-    if world.player.action == PlayerAction::StartGame {
+    if world.player.state != PlayerState::MakingTurn {
         return;
     }
     let player_indexes = &world.entity_indexes[&PLAYER_ID];
     let player_character = &world.characters[player_indexes.character.unwrap()];
-    if (tcod.key.printable != 'i') || !player_character.alive {
+    if (world.player.action != PlayerAction::OpenInventory) || !player_character.alive {
         return;
     }
     // show the inventory: if an item is selected, use it
@@ -264,7 +303,6 @@ pub fn update_inventory_state(world: &mut World, tcod: &mut Tcod) {
     if let Some(inventory_id) = inventory_id {
         use_item(inventory_id, world, tcod);
     }
-    world.player.action = PlayerAction::TookTurn;
 }
 
 enum UseResult {
@@ -534,12 +572,12 @@ fn target_tile(tcod: &mut Tcod, world: &mut World, max_range: Option<f32>) -> Op
 
 // *** Drop Action System ***
 pub fn update_drop_action_state(world: &mut World, tcod: &mut Tcod) {
-    if world.player.action == PlayerAction::StartGame {
+    if world.player.state != PlayerState::MakingTurn {
         return;
     }
     let player_indexes = &world.entity_indexes[&PLAYER_ID];
     let player = &world.characters[player_indexes.character.unwrap()];
-    if (tcod.key.printable != 'd') || !player.alive {
+    if (world.player.action != PlayerAction::DropItem) || !player.alive {
         return;
     }
     let inventory_id = inventory_menu(
@@ -571,7 +609,7 @@ fn drop_item(inventory_id: u32, world: &mut World) {
 
 // *** Death System ***
 pub fn update_death_state(world: &mut World, _tcod: &mut Tcod) {
-    if world.player.action != PlayerAction::TookTurn {
+    if world.player.state != PlayerState::MakingTurn {
         return;
     }
     let callbacks = world
@@ -606,6 +644,8 @@ fn player_death(_id: u32, world: &mut World) {
     let symbol = &mut world.symbols[indexes.symbol.unwrap()];
     symbol.char = '\u{A3}';
     symbol.color = COLOR_DARK_RED;
+    let player = &mut world.characters[indexes.character.unwrap()];
+    player.on_death = DeathCallback::None;
 }
 
 fn monster_death(monster_id: u32, world: &mut World) {
@@ -631,7 +671,7 @@ fn monster_death(monster_id: u32, world: &mut World) {
 
 // *** Character System ***
 pub fn update_character_state(world: &mut World, tcod: &mut Tcod) {
-    if world.player.action == PlayerAction::StartGame {
+    if world.player.state != PlayerState::MakingTurn {
         return;
     }
     let player_indexes = &world.entity_indexes[&PLAYER_ID];
@@ -688,12 +728,12 @@ pub fn update_character_state(world: &mut World, tcod: &mut Tcod) {
 
 // *** Stats Menu System ***
 pub fn update_stats_menu_state(world: &mut World, tcod: &mut Tcod) {
-    if world.player.action == PlayerAction::StartGame {
+    if world.player.state != PlayerState::MakingTurn {
         return;
     }
     let player_indexes = &world.entity_indexes[&PLAYER_ID];
     let player = &world.characters[player_indexes.character.unwrap()];
-    if (tcod.key.printable != 'c') || !player.alive {
+    if (world.player.action != PlayerAction::OpenCharInfo) || !player.alive {
         return;
     }
     // show character information
@@ -719,8 +759,8 @@ pub fn update_stats_menu_state(world: &mut World, tcod: &mut Tcod) {
 }
 
 // *** Help Menu System ***
-pub fn update_help_menu_state(_world: &mut World, tcod: &mut Tcod) {
-    if tcod.key.code != tcod::input::KeyCode::F1 {
+pub fn update_help_menu_state(world: &mut World, tcod: &mut Tcod) {
+    if world.player.action != PlayerAction::OpenHelp {
         return;
     }
     let msg = "           How To Play\n\
@@ -740,9 +780,11 @@ pub fn update_help_menu_state(_world: &mut World, tcod: &mut Tcod) {
 }
 
 // *** Save System ***
-pub fn update_saved_game_state(world: &mut World, tcod: &mut Tcod) {
-    if (world.player.action == PlayerAction::StartGame) || (tcod.key.code != input::KeyCode::Escape)
-    {
+pub fn update_saved_game_state(world: &mut World, _tcod: &mut Tcod) {
+    if world.player.state != PlayerState::MakingTurn {
+        return;
+    }
+    if world.player.action != PlayerAction::Cancel {
         return;
     }
     let save_data = serde_json::to_string(world).unwrap();
@@ -752,7 +794,7 @@ pub fn update_saved_game_state(world: &mut World, tcod: &mut Tcod) {
 
 // *** Render System ***
 pub fn render_all(world: &mut World, tcod: &mut Tcod) {
-    if world.player.action == PlayerAction::StartGame {
+    if world.player.state != PlayerState::MakingTurn {
         return;
     }
     let player_indexes = &world.entity_indexes[&PLAYER_ID];
@@ -958,10 +1000,11 @@ fn get_names_under_mouse(mouse: input::Mouse, world: &World, fov_map: &tcod::map
 
 // *** Game Init System ***
 pub fn update_initial_state(world: &mut World, tcod: &mut Tcod) {
-    if (world.player.action != PlayerAction::StartGame) && (tcod.key.code != input::KeyCode::Escape)
+    if (world.player.state != PlayerState::InMenu) && (world.player.action != PlayerAction::Cancel)
     {
         return;
     }
+    world.player.state = PlayerState::InMenu;
     tcod.con.set_default_background(COLOR_DARK_GROUND_BG);
     let img = tcod::image::Image::from_file("menu_background.png")
         .ok()
@@ -990,12 +1033,13 @@ pub fn update_initial_state(world: &mut World, tcod: &mut Tcod) {
         match choice {
             Some(0) => {
                 new_game(world, tcod);
-                world.player.action = PlayerAction::DidntTakeTurn;
+                world.player.state = PlayerState::MakingTurn;
                 break;
             }
             Some(1) => {
                 if load_game(world).is_ok() {
                     initialise_fov(world, tcod);
+                    world.player.state = PlayerState::MakingTurn;
                     break;
                 } else {
                     msgbox("\nNo saved game to load.\n", 24, &mut tcod.root);
@@ -1004,7 +1048,7 @@ pub fn update_initial_state(world: &mut World, tcod: &mut Tcod) {
             }
             Some(2) => {
                 // quit
-                world.player.action = PlayerAction::Exit;
+                world.player.action = PlayerAction::Cancel;
                 break;
             }
             _ => {}

@@ -8,6 +8,11 @@ mod cmtp;
 mod game;
 mod systems;
 
+fn player_wants_to_exit(world: &World) -> bool {
+    return (world.player.state == PlayerState::InMenu)
+        && (world.player.action == PlayerAction::Cancel);
+}
+
 fn main() {
     tcod::system::set_fps(LIMIT_FPS);
     let spritesheet = if tcod::system::get_current_resolution() >= (1920, 1080) {
@@ -30,7 +35,7 @@ fn main() {
         mouse: Default::default(),
     };
     let mut world = World::default();
-    while !tcod.root.window_closed() && (world.player.action != PlayerAction::Exit) {
+    while !tcod.root.window_closed() && !player_wants_to_exit(&world) {
         systems::update_input_state(&mut world, &mut tcod);
         systems::update_map_interaction_state(&mut world, &mut tcod);
         systems::player_move_or_attack(&mut world, &mut tcod);

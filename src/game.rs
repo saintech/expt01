@@ -762,7 +762,6 @@ pub fn spawn_player(world: &mut World) {
         None,
         None,
     );
-    world.player.action = PlayerAction::DidntTakeTurn;
     if world.player.dungeon_level == 0 {
         world.player.dungeon_level = 1;
     }

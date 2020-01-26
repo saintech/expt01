@@ -4,21 +4,50 @@ use tcod::colors;
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Player {
     pub dungeon_level: u32,
+    pub state: PlayerState,
     pub action: PlayerAction,
     pub previous_player_position: (i32, i32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum PlayerState {
+    InMenu,
+    MakingTurn,
+    TargetingTile,
+}
+
+impl Default for PlayerState {
+    fn default() -> Self {
+        PlayerState::InMenu
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum PlayerAction {
-    StartGame,
-    Exit,
-    TookTurn,
-    DidntTakeTurn,
+    None,
+    Cancel,
+    SelectMenuItem(usize),
+    LookAt(i32, i32),
+    ClickAt(i32, i32),
+    GoToUp,
+    GoToDown,
+    GoToLeft,
+    GoToRight,
+    GoToUpLeft,
+    GoToUpRight,
+    GoToDownLeft,
+    GoToDownRight,
+    SkipTurn,
+    InteractWithMap,
+    OpenHelp,
+    OpenInventory,
+    OpenCharInfo,
+    DropItem,
 }
 
 impl Default for PlayerAction {
     fn default() -> Self {
-        PlayerAction::StartGame
+        PlayerAction::None
     }
 }
 
