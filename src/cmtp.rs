@@ -3,22 +3,24 @@ use tcod::colors;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Player {
+    pub id: u32,
     pub dungeon_level: u32,
     pub state: PlayerState,
     pub action: PlayerAction,
+    pub look_at: [Option<u32>; 4],
     pub previous_player_position: (i32, i32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum PlayerState {
-    InMenu,
+    InDialog,
     MakingTurn,
-    TargetingTile,
+    TargetingTile(u32),
 }
 
 impl Default for PlayerState {
     fn default() -> Self {
-        PlayerState::InMenu
+        PlayerState::InDialog
     }
 }
 
@@ -51,7 +53,7 @@ impl Default for PlayerAction {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Symbol {
     pub x: i32,
     pub y: i32,
@@ -65,9 +67,10 @@ pub struct MapCell {
     pub block: bool,
     pub explored: bool,
     pub block_sight: bool,
+    pub in_fov: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct MapObject {
     pub name: String,
     pub block: bool,
@@ -75,7 +78,7 @@ pub struct MapObject {
     pub hidden: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Character {
     pub alive: bool,
     pub level: i32,
@@ -93,6 +96,12 @@ pub enum DeathCallback {
     None,
     Player,
     Monster,
+}
+
+impl Default for DeathCallback {
+    fn default() -> Self {
+        DeathCallback::None
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -153,3 +162,20 @@ impl std::fmt::Display for Slot {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LogMessage(pub String, pub colors::Color);
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DialogBox {
+    pub kind: DialogKind,
+    pub header: String,
+    pub options: Vec<String>,
+    pub width: i32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum DialogKind {
+    MainMenu,
+    MessageBox,
+    Inventory,
+    DropItem,
+    LevelUp,
+}

@@ -67,6 +67,3 @@ pub const COLOR_DARK_GROUND: colors::Color = COLOR_DARKER_SEPIA;
 pub const COLOR_DARK_GROUND_BG: colors::Color = COLOR_DARKER_SEPIA;
 pub const COLOR_LIGHT_GROUND: colors::Color = COLOR_DARK_SEPIA;
 pub const COLOR_LIGHT_GROUND_BG: colors::Color = COLOR_DARKER_SEPIA;
-
-// player will always be the first object
-pub const PLAYER_ID: u32 = 1;

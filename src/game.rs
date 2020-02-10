@@ -4,7 +4,7 @@ use rand::distributions::{Distribution as _, WeightedIndex};
 use rand::Rng as _;
 use serde::{Deserialize, Serialize};
 use std::{cmp, collections::btree_map::BTreeMap};
-use tcod::{colors, console, input, Console as _};
+use tcod::{colors, console, input};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EntityIndexes {
@@ -16,6 +16,7 @@ pub struct EntityIndexes {
     pub item: Option<usize>,
     pub equipment: Option<usize>,
     pub log_message: Option<usize>,
+    pub dialog: Option<usize>,
 }
 
 pub struct Tcod {
@@ -32,6 +33,7 @@ pub struct World {
     pub id_count: u32,
     pub entity_indexes: BTreeMap<u32, EntityIndexes>,
     pub player: Player,
+    pub must_be_destroyed: bool,
     pub symbols: Vec<Symbol>,
     pub map: Vec<MapCell>,
     pub map_objects: Vec<MapObject>,
@@ -40,6 +42,7 @@ pub struct World {
     pub items: Vec<OwnedItem>,
     pub equipments: Vec<Equipment>,
     pub log: Vec<LogMessage>,
+    pub dialogs: Vec<DialogBox>,
 }
 
 impl World {
@@ -53,6 +56,7 @@ impl World {
         item: Option<OwnedItem>,
         equipment: Option<Equipment>,
         log_message: Option<LogMessage>,
+        dialog: Option<DialogBox>,
     ) -> u32 {
         let entity_indexes = EntityIndexes {
             symbol: symbol.as_ref().map(|_| self.symbols.len()),
@@ -63,6 +67,7 @@ impl World {
             item: item.as_ref().map(|_| self.items.len()),
             equipment: equipment.as_ref().map(|_| self.equipments.len()),
             log_message: log_message.as_ref().map(|_| self.log.len()),
+            dialog: dialog.as_ref().map(|_| self.dialogs.len()),
         };
         symbol.map(|c| self.symbols.push(c));
         map_cell.map(|c| self.map.push(c));
@@ -72,6 +77,7 @@ impl World {
         item.map(|c| self.items.push(c));
         equipment.map(|c| self.equipments.push(c));
         log_message.map(|c| self.log.push(c));
+        dialog.map(|c| self.dialogs.push(c));
         self.id_count += 1;
         self.entity_indexes.insert(self.id_count, entity_indexes);
         self.id_count
@@ -88,6 +94,32 @@ pub fn add_log(world: &mut World, message: impl Into<String>, color: colors::Col
         None,
         None,
         Some(LogMessage(message.into(), color)),
+        None,
+    );
+}
+
+pub fn add_dialog_box(
+    world: &mut World,
+    kind: DialogKind,
+    header: String,
+    options: Vec<String>,
+    width: i32,
+) {
+    world.create_entity(
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(DialogBox {
+            kind,
+            header,
+            options,
+            width,
+        }),
     );
 }
 
@@ -276,15 +308,15 @@ fn is_blocked(x: i32, y: i32, world: &World) -> bool {
 }
 
 /// Advance to the next level
-pub fn next_level(world: &mut World, tcod: &mut Tcod) {
-    clear_map(world);
+pub fn next_level(world: &mut World) {
+    clear_dungeon(world);
     add_log(
         world,
         "You take a moment to rest, and recover your strength.",
         COLOR_GREEN,
     );
-    let heal_hp = max_hp(PLAYER_ID, world) / 2;
-    heal(PLAYER_ID, heal_hp, world);
+    let heal_hp = max_hp(world.player.id, world) / 2;
+    heal(world.player.id, heal_hp, world);
     add_log(
         world,
         "After a rare moment of peace, you descend deeper into \
@@ -292,31 +324,64 @@ pub fn next_level(world: &mut World, tcod: &mut Tcod) {
         COLOR_ORANGE,
     );
     world.player.dungeon_level += 1;
-    make_map(world, world.player.dungeon_level);
-    initialise_fov(world, tcod);
-    tcod.con.clear();
 }
 
-fn clear_map(world: &mut World) {
+fn clear_dungeon(world: &mut World) {
     // create new world for storing entities that should be saved
     let mut temp_world = World::default();
-    // copy player character
-    spawn_player(&mut temp_world);
-    let player_indexes = &world.entity_indexes[&PLAYER_ID];
-    let player = &mut world.characters[player_indexes.character.unwrap()];
-    let temp_player_indexes = &temp_world.entity_indexes[&PLAYER_ID];
-    let temp_player = &mut temp_world.characters[temp_player_indexes.character.unwrap()];
-    temp_player.level = player.level;
-    temp_player.hp = player.hp;
-    temp_player.base_max_hp = player.base_max_hp;
-    temp_player.base_defense = player.base_defense;
-    temp_player.base_power = player.base_power;
-    temp_player.xp = player.xp;
+    temp_world.id_count = world.id_count;
+    //copy player
+    let player = &world.player;
+    temp_world.player = Player {
+        id: player.id,
+        dungeon_level: player.dungeon_level,
+        state: player.state,
+        action: player.action,
+        look_at: player.look_at,
+        previous_player_position: player.previous_player_position,
+    };
+    // move player entity if exist
+    if let Some(indexes) = world.entity_indexes.remove(&world.player.id) {
+        let symbol = Symbol {
+            x: world.symbols[indexes.symbol.unwrap()].x,
+            y: world.symbols[indexes.symbol.unwrap()].y,
+            char: world.symbols[indexes.symbol.unwrap()].char,
+            color: world.symbols[indexes.symbol.unwrap()].color,
+        };
+        let map_object = MapObject {
+            name: world.map_objects[indexes.map_object.unwrap()].name.clone(),
+            block: world.map_objects[indexes.map_object.unwrap()].block,
+            always_visible: world.map_objects[indexes.map_object.unwrap()].always_visible,
+            hidden: world.map_objects[indexes.map_object.unwrap()].hidden,
+        };
+        let character = Character {
+            alive: world.characters[indexes.character.unwrap()].alive,
+            level: world.characters[indexes.character.unwrap()].level,
+            hp: world.characters[indexes.character.unwrap()].hp,
+            base_max_hp: world.characters[indexes.character.unwrap()].base_max_hp,
+            base_defense: world.characters[indexes.character.unwrap()].base_defense,
+            base_power: world.characters[indexes.character.unwrap()].base_power,
+            xp: world.characters[indexes.character.unwrap()].xp,
+            on_death: world.characters[indexes.character.unwrap()].on_death,
+            looking_right: world.characters[indexes.character.unwrap()].looking_right,
+        };
+        temp_world.player.id = temp_world.create_entity(
+            Some(symbol),
+            None,
+            Some(map_object),
+            Some(character),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+    }
     // copy inventory
     let inventory = world.entity_indexes.iter().filter(|&(_, indexes)| {
         indexes
             .item
-            .filter(|&it| world.items[it].owner == PLAYER_ID)
+            .filter(|&it| world.items[it].owner == world.player.id)
             .is_some()
     });
     for (&id, indexes) in inventory {
@@ -334,7 +399,7 @@ fn clear_map(world: &mut World) {
         };
         let item = OwnedItem {
             item: world.items[indexes.item.unwrap()].item,
-            owner: world.items[indexes.item.unwrap()].owner,
+            owner: temp_world.player.id,
         };
         let equipment = indexes.equipment.map(|index| Equipment {
             slot: world.equipments[index].slot,
@@ -352,6 +417,7 @@ fn clear_map(world: &mut World) {
             item: Some(temp_world.items.len()),
             equipment: indexes.equipment.map(|_| temp_world.equipments.len()),
             log_message: None,
+            dialog: None,
         };
         temp_world.symbols.push(symbol);
         temp_world.map_objects.push(map_object);
@@ -378,20 +444,12 @@ fn clear_map(world: &mut World) {
             item: None,
             equipment: None,
             log_message: Some(temp_world.log.len()),
+            dialog: None,
         };
         temp_world.log.push(log_message);
         temp_world.entity_indexes.insert(id, entity_indexes);
     }
-    // replace world data
-    world.entity_indexes = temp_world.entity_indexes;
-    world.symbols = temp_world.symbols;
-    world.map = temp_world.map;
-    world.map_objects = temp_world.map_objects;
-    world.characters = temp_world.characters;
-    world.ais = temp_world.ais;
-    world.items = temp_world.items;
-    world.equipments = temp_world.equipments;
-    world.log = temp_world.log;
+    *world = temp_world;
 }
 
 /// A rectangle on the map, used to characterise a room.
@@ -453,7 +511,7 @@ pub fn make_map(world: &mut World, level: u32) {
             let (new_x, new_y) = new_room.center();
             if rooms.is_empty() {
                 // this is the first room, where the player starts at
-                let player_indexes = &world.entity_indexes[&PLAYER_ID];
+                let player_indexes = &world.entity_indexes[&world.player.id];
                 world.symbols[player_indexes.symbol.unwrap()].x = new_x;
                 world.symbols[player_indexes.symbol.unwrap()].y = new_y;
             } else {
@@ -488,7 +546,9 @@ fn fill_walls(world: &mut World) {
                 block: true,
                 explored: false,
                 block_sight: true,
+                in_fov: false,
             }),
+            None,
             None,
             None,
             None,
@@ -535,9 +595,10 @@ fn place_hints(world: &mut World, rooms: &mut Vec<Rect>) {
             None,
             None,
             None,
+            None,
         );
     });
-    let player_indexes = &world.entity_indexes[&PLAYER_ID];
+    let player_indexes = &world.entity_indexes[&world.player.id];
     world.symbols[player_indexes.symbol.unwrap()].x = x + 3;
     world.symbols[player_indexes.symbol.unwrap()].y = y + 3;
     rooms.push(new_room);
@@ -737,7 +798,7 @@ pub fn spawn_player(world: &mut World) {
     let xp = 0;
     let on_death = DeathCallback::Player;
     let looking_right = false;
-    let player_id = world.create_entity(
+    world.player.id = world.create_entity(
         Some(Symbol { x, y, char, color }),
         None,
         Some(MapObject {
@@ -761,14 +822,30 @@ pub fn spawn_player(world: &mut World) {
         None,
         None,
         None,
+        None,
+    );
+    // initial equipment: Pipe
+    let pipe_id = spawn_item(world, Item::Melee, world.player.id, 0, 0);
+    let pipe_indexes = &world.entity_indexes[&pipe_id];
+    world.symbols[pipe_indexes.symbol.unwrap()] = Symbol {
+        x: 0,
+        y: 0,
+        char: '\u{94}',
+        color: COLOR_DARK_SEPIA,
+    };
+    world.map_objects[pipe_indexes.map_object.unwrap()].name = String::from("Pipe");
+    world.equipments[pipe_indexes.equipment.unwrap()].power_bonus = 2;
+    //    initialise_fov(world, tcod);
+    add_log(
+        world,
+        String::from(
+            "Welcome stranger! Prepare to perish in the Abandoned Mines. Press F1 for help.\n",
+        ),
+        COLOR_ORANGE,
     );
     if world.player.dungeon_level == 0 {
         world.player.dungeon_level = 1;
-    }
-    assert_eq!(
-        PLAYER_ID, player_id,
-        "the player must be the first entity with ID 1"
-    );
+    };
 }
 
 fn spawn_monster(world: &mut World, name: &str, symbol: Symbol, character: Character, ai: Ai) {
@@ -787,6 +864,7 @@ fn spawn_monster(world: &mut World, name: &str, symbol: Symbol, character: Chara
         }),
         Some(character),
         Some(AiOption { option: Some(ai) }),
+        None,
         None,
         None,
         None,
@@ -842,6 +920,7 @@ pub fn spawn_item(world: &mut World, item: Item, owner: u32, x: i32, y: i32) -> 
         Some(OwnedItem { item, owner }),
         equipment,
         None,
+        None,
     )
 }
 
@@ -879,68 +958,25 @@ fn spawn_stairs(world: &mut World, x: i32, y: i32) {
         None,
         None,
         None,
+        None,
     );
 }
 
-pub fn menu(
-    header: &str,
-    options: &[impl AsRef<str>],
-    width: i32,
-    root: &mut console::Root,
-) -> Option<usize> {
-    let keys = b"123456789abcdefghijklmnopqrstuvwxyz";
-    assert!(
-        options.len() <= 35,
-        "Cannot have a menu with more than 35 options."
-    );
-    // calculate total height for the header (after auto-wrap) and one line per option
-    let header_height = if header.is_empty() {
-        -1
-    } else {
-        root.get_height_rect(0, 0, width - 2, SCREEN_HEIGHT - 2, header)
-    };
-    let height = if options.len() > 0 {
-        header_height + options.len() as i32 + 3
-    } else {
-        header_height + 2
-    };
-    // create an off-screen console that represents the menu's window
-    let mut window = console::Offscreen::new(width, height);
-    window.set_default_background(COLOR_DARK_SKY);
-    window.set_default_foreground(COLOR_DARKER_SEPIA);
-    window.clear();
-    // print the header, with auto-wrap
-    window.print_rect(1, 1, width - 1, height, header);
-    // print all the options
-    for (index, option_text) in options.iter().enumerate() {
-        let menu_letter = keys[index] as char;
-        let text = format!("[{}] {}", menu_letter, option_text.as_ref());
-        window.print(1, header_height + 2 + index as i32, text);
-    }
-    // blit the contents of "window" to the root console
-    let x = SCREEN_WIDTH / 2 - width / 2;
-    let y = SCREEN_HEIGHT / 2 - height / 2;
-    tcod::console::blit(&mut window, (0, 0), (width, height), root, (x, y), 1.0, 1.0);
-    // present the root console to the player and wait for a key-press
-    root.flush();
-    let key = root.wait_for_keypress(true);
-    // convert the ASCII code to an index; if it corresponds to an option, return it
-    keys[0..options.len()]
-        .iter()
-        .position(|&val| val as char == key.printable.to_ascii_lowercase())
-}
-
-pub fn inventory_menu(world: &mut World, header: &str, root: &mut console::Root) -> Option<u32> {
-    let inventory: Vec<_> = world
+pub fn get_inventory(world: &World) -> Vec<u32> {
+    world
         .entity_indexes
         .iter()
         .filter_map(|(&id, indexes)| {
             indexes
                 .item
-                .filter(|&it| world.items[it].owner == PLAYER_ID)
+                .filter(|&it| world.items[it].owner == world.player.id)
                 .and(Some(id))
         })
-        .collect();
+        .collect()
+}
+
+pub fn add_inventory_menu(world: &mut World, kind: DialogKind, header: String) {
+    let inventory: Vec<_> = get_inventory(world);
     // how a menu with each item of the inventory as an option
     let options = if inventory.len() == 0 {
         vec![String::from("Inventory is empty.")]
@@ -958,21 +994,12 @@ pub fn inventory_menu(world: &mut World, header: &str, root: &mut console::Root)
             })
             .collect()
     };
-    let inventory_index = menu(header, &options, INVENTORY_WIDTH, root);
-    if inventory.len() > 0 {
-        inventory_index.map(|i| inventory[i])
-    } else {
-        None
-    }
-}
-
-pub fn msgbox(text: &str, width: i32, root: &mut console::Root) {
-    let options: &[&str] = &[];
-    menu(text, options, width, root);
+    add_dialog_box(world, kind, header, options, INVENTORY_WIDTH);
 }
 
 /// create the FOV map, according to the generated map
-pub fn initialise_fov(world: &mut World, tcod: &mut Tcod) {
+pub fn create_fov(world: &mut World, tcod: &mut Tcod) {
+    tcod.fov = tcod::map::Map::new(MAP_WIDTH, MAP_HEIGHT);
     for y in 0..MAP_HEIGHT {
         for x in 0..MAP_WIDTH {
             let index_in_map = (y * MAP_WIDTH + x) as usize;

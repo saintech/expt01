@@ -1,5 +1,4 @@
 use cfg::*;
-use cmtp::*;
 use game::*;
 use tcod::console;
 
@@ -7,11 +6,6 @@ mod cfg;
 mod cmtp;
 mod game;
 mod systems;
-
-fn player_wants_to_exit(world: &World) -> bool {
-    return (world.player.state == PlayerState::InMenu)
-        && (world.player.action == PlayerAction::Cancel);
-}
 
 fn main() {
     tcod::system::set_fps(LIMIT_FPS);
@@ -30,24 +24,26 @@ fn main() {
         root: root,
         con: console::Offscreen::new(MAP_WIDTH, MAP_HEIGHT),
         panel: console::Offscreen::new(SCREEN_WIDTH, PANEL_HEIGHT),
-        fov: tcod::map::Map::new(MAP_WIDTH, MAP_HEIGHT),
+        fov: tcod::map::Map::new(1, 1),
         key: Default::default(),
         mouse: Default::default(),
     };
     let mut world = World::default();
-    while !tcod.root.window_closed() && !player_wants_to_exit(&world) {
+    while !tcod.root.window_closed() && !world.must_be_destroyed {
         systems::update_input_state(&mut world, &mut tcod);
+        systems::update_main_menu_state(&mut world, &mut tcod);
+        systems::update_dungeon_state(&mut world, &mut tcod);
+        systems::update_message_box_state(&mut world, &mut tcod);
         systems::update_map_interaction_state(&mut world, &mut tcod);
         systems::player_move_or_attack(&mut world, &mut tcod);
         systems::update_ai_turn_state(&mut world, &mut tcod);
         systems::update_inventory_state(&mut world, &mut tcod);
-        systems::update_drop_action_state(&mut world, &mut tcod);
         systems::update_death_state(&mut world, &mut tcod);
         systems::update_character_state(&mut world, &mut tcod);
         systems::update_stats_menu_state(&mut world, &mut tcod);
         systems::update_help_menu_state(&mut world, &mut tcod);
-        systems::update_saved_game_state(&mut world, &mut tcod);
+        systems::update_fov_state(&mut world, &mut tcod);
+        systems::update_mouse_look_system(&mut world, &mut tcod);
         systems::render_all(&mut world, &mut tcod);
-        systems::update_initial_state(&mut world, &mut tcod);
     }
 }
