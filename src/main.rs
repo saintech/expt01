@@ -30,20 +30,20 @@ fn main() {
     };
     let mut world = World::default();
     while !tcod.root.window_closed() && !world.must_be_destroyed {
-        systems::update_input_state(&mut world, &mut tcod);
-        systems::update_main_menu_state(&mut world, &mut tcod);
-        systems::update_dungeon_state(&mut world, &mut tcod);
-        systems::update_message_box_state(&mut world, &mut tcod);
-        systems::update_map_interaction_state(&mut world, &mut tcod);
-        systems::player_move_or_attack(&mut world, &mut tcod);
-        systems::update_ai_turn_state(&mut world, &mut tcod);
-        systems::update_inventory_state(&mut world, &mut tcod);
-        systems::update_death_state(&mut world, &mut tcod);
-        systems::update_character_state(&mut world, &mut tcod);
-        systems::update_stats_menu_state(&mut world, &mut tcod);
-        systems::update_help_menu_state(&mut world, &mut tcod);
-        systems::update_fov_state(&mut world, &mut tcod);
-        systems::update_mouse_look_system(&mut world, &mut tcod);
-        systems::render_all(&mut world, &mut tcod);
+        systems::input::update(&mut world);
+        systems::main_menu::update(&mut world);
+        systems::dungeon::update(&mut world);
+        systems::message_box::update(&mut world);
+        systems::map_interaction::update(&mut world);
+        systems::player_action::update(&mut world);
+        systems::ai::update(&mut world, &mut tcod);
+        systems::inventory::update(&mut world, &mut tcod);
+        systems::death::update(&mut world);
+        systems::character::update(&mut world);
+        systems::stats_menu::update(&mut world);
+        systems::help_menu::update(&mut world);
+        systems::fov::update(&mut world, &mut tcod);
+        systems::mouse_look::update(&mut world);
+        systems::render::update(&mut world, &mut tcod);
     }
 }
