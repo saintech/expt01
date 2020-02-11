@@ -22,10 +22,8 @@ fn main() {
         root: root,
         con: console::Offscreen::new(cfg::MAP_WIDTH, cfg::MAP_HEIGHT),
         panel: console::Offscreen::new(cfg::SCREEN_WIDTH, cfg::PANEL_HEIGHT),
-        fov: tcod::map::Map::new(1, 1),
-        key: Default::default(),
-        mouse: Default::default(),
     };
+    let mut fov = tcod::map::Map::new(1, 1);
     let mut world: game::World = Default::default();
     while !tcod.root.window_closed() && !world.must_be_destroyed {
         systems::input::update(&mut world);
@@ -40,7 +38,7 @@ fn main() {
         systems::character::update(&mut world);
         systems::stats_menu::update(&mut world);
         systems::help_menu::update(&mut world);
-        systems::fov::update(&mut world, &mut tcod);
+        systems::fov::update(&mut world, &mut fov);
         systems::mouse_look::update(&mut world);
         systems::render::update(&mut world, &mut tcod);
     }

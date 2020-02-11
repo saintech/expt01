@@ -2,7 +2,7 @@ use crate::cfg::*;
 use crate::cmtp::*;
 use serde::{Deserialize, Serialize};
 use std::collections::btree_map::BTreeMap;
-use tcod::{colors, console, input};
+use tcod::{colors, console};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EntityIndexes {
@@ -21,9 +21,6 @@ pub struct Tcod {
     pub root: console::Root,
     pub con: console::Offscreen,
     pub panel: console::Offscreen,
-    pub fov: tcod::map::Map,
-    pub key: input::Key,
-    pub mouse: input::Mouse,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
