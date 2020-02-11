@@ -1,5 +1,3 @@
-use cfg::*;
-use game::*;
 use tcod::console;
 
 mod cfg;
@@ -8,7 +6,7 @@ mod game;
 mod systems;
 
 fn main() {
-    tcod::system::set_fps(LIMIT_FPS);
+    tcod::system::set_fps(cfg::LIMIT_FPS);
     let spritesheet = if tcod::system::get_current_resolution() >= (1920, 1080) {
         "spritesheet-14px-2x.png"
     } else {
@@ -17,18 +15,18 @@ fn main() {
     let root = console::Root::initializer()
         .font(spritesheet, console::FontLayout::AsciiInRow)
         .font_type(console::FontType::Default)
-        .size(SCREEN_WIDTH, SCREEN_HEIGHT)
+        .size(cfg::SCREEN_WIDTH, cfg::SCREEN_HEIGHT)
         .title("saintech's experiments: Expt01")
         .init();
-    let mut tcod = Tcod {
+    let mut tcod = game::Tcod {
         root: root,
-        con: console::Offscreen::new(MAP_WIDTH, MAP_HEIGHT),
-        panel: console::Offscreen::new(SCREEN_WIDTH, PANEL_HEIGHT),
+        con: console::Offscreen::new(cfg::MAP_WIDTH, cfg::MAP_HEIGHT),
+        panel: console::Offscreen::new(cfg::SCREEN_WIDTH, cfg::PANEL_HEIGHT),
         fov: tcod::map::Map::new(1, 1),
         key: Default::default(),
         mouse: Default::default(),
     };
-    let mut world = World::default();
+    let mut world: game::World = Default::default();
     while !tcod.root.window_closed() && !world.must_be_destroyed {
         systems::input::update(&mut world);
         systems::main_menu::update(&mut world);
