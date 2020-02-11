@@ -39,7 +39,7 @@ fn used_targetable_item(world: &game::World) -> Option<u32> {
     }
 }
 
-pub fn update(world: &mut game::World, tcod: &mut game::Tcod) {
+pub fn update(world: &mut game::World) {
     let is_opening_inventory = is_opening_inventory(world);
     let opened_menu = world.dialogs.last().and_then(inventory_kind);
     if is_opening_inventory {
@@ -70,7 +70,7 @@ pub fn update(world: &mut game::World, tcod: &mut game::Tcod) {
         };
         if let Some(inventory_id) = inventory_id {
             match dialog_kind {
-                DialogKind::Inventory => use_item(inventory_id, world, tcod, false),
+                DialogKind::Inventory => use_item(inventory_id, world, false),
                 DialogKind::DropItem => drop_item(inventory_id, world),
                 _ => unreachable!(),
             }
@@ -80,7 +80,7 @@ pub fn update(world: &mut game::World, tcod: &mut game::Tcod) {
             };
         }
     } else if let Some(inventory_id) = used_targetable_item(world) {
-        use_item(inventory_id, world, tcod, true);
+        use_item(inventory_id, world, true);
         world.player.state = PlayerState::MakingTurn;
     }
 }
@@ -127,7 +127,7 @@ enum UseResult {
     NeedTargeting,
 }
 
-fn use_item(inventory_id: u32, world: &mut game::World, tcod: &mut game::Tcod, by_targeting: bool) {
+fn use_item(inventory_id: u32, world: &mut game::World, by_targeting: bool) {
     // just call the "use_function" if it is defined
     if let Some(item_index) = world.entity_indexes[&inventory_id].item {
         use Item::*;
@@ -139,7 +139,7 @@ fn use_item(inventory_id: u32, world: &mut game::World, tcod: &mut game::Tcod, b
             Melee => toggle_equipment,
             Clothing => toggle_equipment,
         };
-        match on_use(inventory_id, world, tcod, by_targeting) {
+        match on_use(inventory_id, world, by_targeting) {
             UseResult::UsedUp => {
                 let item_indexes = &world.entity_indexes[&inventory_id];
                 // destroy after use, unless it was cancelled for some reason
@@ -165,12 +165,7 @@ fn use_item(inventory_id: u32, world: &mut game::World, tcod: &mut game::Tcod, b
     }
 }
 
-fn use_medkit(
-    _inventory_id: u32,
-    world: &mut game::World,
-    _tcod: &mut game::Tcod,
-    _by_targeting: bool,
-) -> UseResult {
+fn use_medkit(_inventory_id: u32, world: &mut game::World, _by_targeting: bool) -> UseResult {
     // heal the player
     let player_indexes = &world.entity_indexes[&world.player.id];
     let player = &world.characters[player_indexes.character.unwrap()];
@@ -183,14 +178,9 @@ fn use_medkit(
     UseResult::UsedUp
 }
 
-fn shoot_slingshot(
-    _inventory_id: u32,
-    world: &mut game::World,
-    tcod: &mut game::Tcod,
-    _by_targeting: bool,
-) -> UseResult {
+fn shoot_slingshot(_inventory_id: u32, world: &mut game::World, _by_targeting: bool) -> UseResult {
     // find closest enemy (inside a maximum range and damage it)
-    let monster_id = closest_monster(cfg::SLINGSHOT_RANGE, world, tcod);
+    let monster_id = closest_monster(cfg::SLINGSHOT_RANGE, world);
     if let Some(monster_id) = monster_id {
         let indexes = &world.entity_indexes[&monster_id];
         let monster = &mut world.characters[indexes.character.unwrap()];
@@ -221,7 +211,7 @@ fn shoot_slingshot(
 }
 
 /// find closest enemy, up to a maximum range, and in the player's FOV
-fn closest_monster(max_range: i32, world: &game::World, tcod: &game::Tcod) -> Option<u32> {
+fn closest_monster(max_range: i32, world: &game::World) -> Option<u32> {
     let mut closest_enemy = None;
     let mut closest_dist = (max_range + 1) as f32; // start with (slightly more than) maximum range
     let enemies = world.entity_indexes.iter().filter_map(|(&id, indexes)| {
@@ -229,7 +219,10 @@ fn closest_monster(max_range: i32, world: &game::World, tcod: &game::Tcod) -> Op
             .character
             .and(indexes.ai)
             .and(indexes.symbol)
-            .filter(|&sy| tcod.fov.is_in_fov(world.symbols[sy].x, world.symbols[sy].y))
+            .filter(|&sy| {
+                let (enemy_x, enemy_y) = (world.symbols[sy].x, world.symbols[sy].y);
+                world.map[(enemy_y * cfg::MAP_WIDTH + enemy_x) as usize].in_fov
+            })
             .map(|sy| (id, world.symbols[sy].x, world.symbols[sy].y))
     });
     for (id, enemy_x, enemy_y) in enemies {
@@ -246,12 +239,7 @@ fn closest_monster(max_range: i32, world: &game::World, tcod: &game::Tcod) -> Op
     closest_enemy
 }
 
-fn throw_brick(
-    _inventory_id: u32,
-    world: &mut game::World,
-    _tcod: &mut game::Tcod,
-    by_targeting: bool,
-) -> UseResult {
+fn throw_brick(_inventory_id: u32, world: &mut game::World, by_targeting: bool) -> UseResult {
     if !by_targeting {
         // ask the player for a target to confuse
         game::add_log(
@@ -301,7 +289,6 @@ fn throw_brick(
 fn throw_blasting_cartridge(
     _inventory_id: u32,
     world: &mut game::World,
-    _tcod: &mut game::Tcod,
     by_targeting: bool,
 ) -> UseResult {
     if !by_targeting {
@@ -369,12 +356,7 @@ fn throw_blasting_cartridge(
     }
 }
 
-fn toggle_equipment(
-    inventory_id: u32,
-    world: &mut game::World,
-    _tcod: &mut game::Tcod,
-    _by_targeting: bool,
-) -> UseResult {
+fn toggle_equipment(inventory_id: u32, world: &mut game::World, _by_targeting: bool) -> UseResult {
     let indexes = &world.entity_indexes[&inventory_id];
     let equipment = &world.equipments[indexes.equipment.unwrap()];
     if equipment.equipped {

@@ -34,8 +34,8 @@ fn main() {
         systems::message_box::update(&mut world);
         systems::map_interaction::update(&mut world);
         systems::player_action::update(&mut world);
-        systems::ai::update(&mut world, &mut tcod);
-        systems::inventory::update(&mut world, &mut tcod);
+        systems::ai::update(&mut world);
+        systems::inventory::update(&mut world);
         systems::death::update(&mut world);
         systems::character::update(&mut world);
         systems::stats_menu::update(&mut world);

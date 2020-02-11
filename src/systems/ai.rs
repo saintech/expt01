@@ -3,7 +3,7 @@ use crate::cmtp::{Ai, PlayerAction, PlayerState, Symbol};
 use crate::game;
 use rand::Rng as _;
 
-pub fn update(world: &mut game::World, tcod: &mut game::Tcod) {
+pub fn update(world: &mut game::World) {
     if world.player.state != PlayerState::MakingTurn {
         return;
     }
@@ -17,7 +17,7 @@ pub fn update(world: &mut game::World, tcod: &mut game::Tcod) {
             .filter_map(|(&id, indexes)| indexes.character.and(indexes.ai.and(Some(id))))
             .collect();
         for id in ai_ids {
-            ai_take_turn(id, world, &tcod.fov);
+            ai_take_turn(id, world);
         }
     }
 }
@@ -31,11 +31,11 @@ fn player_action_is_turn(action: PlayerAction) -> bool {
     };
 }
 
-fn ai_take_turn(id: u32, world: &mut game::World, fov_map: &tcod::Map) {
+fn ai_take_turn(id: u32, world: &mut game::World) {
     let ai_index = world.entity_indexes[&id].ai.unwrap();
     if let Some(ai) = world.ais[ai_index].option.take() {
         let new_ai = match ai {
-            Ai::Basic => ai_basic(id, world, fov_map),
+            Ai::Basic => ai_basic(id, world),
             Ai::Confused {
                 previous_ai,
                 num_turns,
@@ -45,7 +45,7 @@ fn ai_take_turn(id: u32, world: &mut game::World, fov_map: &tcod::Map) {
     }
 }
 
-fn ai_basic(monster_id: u32, world: &mut game::World, fov_map: &tcod::Map) -> Ai {
+fn ai_basic(monster_id: u32, world: &mut game::World) -> Ai {
     let monster_indexes = &world.entity_indexes[&monster_id];
     let monster_symbol = &world.symbols[monster_indexes.symbol.unwrap()];
     let (monster_x, monster_y) = (monster_symbol.x, monster_symbol.y);
@@ -58,7 +58,8 @@ fn ai_basic(monster_id: u32, world: &mut game::World, fov_map: &tcod::Map) -> Ai
     } else {
         world.characters[monster_indexes.character.unwrap()].looking_right = true;
     }
-    if fov_map.is_in_fov(monster_x, monster_y) {
+    let is_in_fov = world.map[(monster_y * cfg::MAP_WIDTH + monster_x) as usize].in_fov;
+    if is_in_fov {
         if game::distance_to(monster_x, monster_y, player_x, player_y) >= 2.0 {
             // move towards player if far away
             move_towards(monster_id, player_x, player_y, world);
