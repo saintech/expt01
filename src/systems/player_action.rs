@@ -17,13 +17,12 @@ pub fn update(world: &mut game::World) {
         _ => return,
     };
     // the coordinates the player is moving to/attacking
-    let player_symbol = world.get_character(world.player.id).unwrap().0;
+    let player_symbol = world.player_sym();
     let new_pos = (player_symbol.x + dx, player_symbol.y + dy);
-    let player = world.get_character_mut(world.player.id).unwrap().2;
     if (dy > 0) || ((dy == 0) && (dx < 0)) {
-        player.looking_right = false;
+        world.player_char_mut().looking_right = false;
     } else if (dy < 0) || ((dy == 0) && (dx > 0)) {
-        player.looking_right = true;
+        world.player_char_mut().looking_right = true;
     }
     // try to find an attackable object there
     let target_id = world

@@ -43,8 +43,7 @@ fn player_action_is_turn(action: PlayerAction) -> bool {
 fn ai_basic(monster_id: u32, world: &mut game::World) -> Ai {
     let monster_symbol = world.get_character(monster_id).unwrap().0;
     let (monster_x, monster_y) = (monster_symbol.x, monster_symbol.y);
-    let player_hp = world.get_character(world.player.id).unwrap().2.hp;
-    let player_symbol = world.get_character(world.player.id).unwrap().0;
+    let player_symbol = world.player_sym();
     let (player_x, player_y) = (player_symbol.x, player_symbol.y);
     if (monster_x > player_x) || ((monster_x == player_x) && (monster_y < player_y)) {
         world.get_character_mut(monster_id).unwrap().2.looking_right = false;
@@ -55,7 +54,7 @@ fn ai_basic(monster_id: u32, world: &mut game::World) -> Ai {
         if game::distance_to(monster_x, monster_y, player_x, player_y) >= 2.0 {
             // move towards player if far away
             move_towards(monster_id, player_x, player_y, world);
-        } else if player_hp > 0 {
+        } else if world.player_char().hp > 0 {
             // close enough, attack! (if the player is still alive.)
             game::attack_by(monster_id, world.player.id, world);
         }

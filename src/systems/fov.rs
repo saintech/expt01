@@ -33,7 +33,7 @@ fn create_fov(world: &mut game::World, fov: &mut map::Map) {
 }
 
 fn compute_fov(world: &mut game::World, fov: &mut map::Map) {
-    let player_symbol = world.get_character(world.player.id).unwrap().0;
+    let player_symbol = world.player_sym();
     let (player_x, player_y) = (player_symbol.x, player_symbol.y);
     if world.player.previous_player_position != (player_x, player_y) {
         fov.compute_fov(

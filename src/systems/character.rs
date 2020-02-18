@@ -3,10 +3,8 @@ use crate::cmtp::{Character, DialogBox, DialogKind, PlayerAction, PlayerState};
 use crate::game;
 
 fn get_lvl_up_player(world: &mut game::World) -> Option<&mut Character> {
-    if world.player.state == PlayerState::MakingTurn {
-        world
-            .get_character_mut(world.player.id)
-            .map(|(.., char, _)| char)
+    if (world.player.state == PlayerState::MakingTurn) && world.player_is_alive() {
+        Some(world.player_char_mut())
             .filter(|char| char.xp >= cfg::LEVEL_UP_BASE + char.level * cfg::LEVEL_UP_FACTOR)
     } else {
         None
@@ -53,7 +51,7 @@ pub fn update(world: &mut game::World) {
         world.player.state = PlayerState::InDialog;
     } else if lvl_up_is_open {
         let player_action = world.player.action;
-        let player = world.get_character_mut(world.player.id).unwrap().2;
+        let player = world.player_char_mut();
         let should_close_dialog = match player_action {
             PlayerAction::SelectMenuItem(0) => {
                 player.base_max_hp += 20;

@@ -134,7 +134,7 @@ fn render_panel(world: &game::World, con: &mut impl console::Console) {
         con.print_rect(cfg::MSG_X, y, cfg::MSG_WIDTH, 0, msg);
     }
     // show the player's stats
-    let hp = world.get_character(world.player.id).unwrap().2.hp;
+    let hp = world.player_char().hp;
     let max_hp = game::max_hp(world.player.id, world);
     render_bar(
         con,

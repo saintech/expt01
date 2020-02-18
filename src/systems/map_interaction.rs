@@ -12,7 +12,7 @@ pub fn update(world: &mut game::World) {
     if (world.player.action != PlayerAction::InteractWithMap) || !world.player_is_alive() {
         return;
     }
-    let player_symbol = world.get_character(world.player.id).unwrap().0;
+    let player_symbol = world.player_sym();
     let player_pos = (player_symbol.x, player_symbol.y);
     // pick up an item or go to next level
     let item_id = world

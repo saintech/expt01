@@ -209,6 +209,21 @@ impl World {
                 .map(|char| (id, char.0, char.1, char.2, char.3))
         })
     }
+    pub fn player_char(&self) -> &Character {
+        self.get_character(self.player.id)
+            .expect("the player has not been created yet")
+            .2
+    }
+    pub fn player_char_mut(&mut self) -> &mut Character {
+        self.get_character_mut(self.player.id)
+            .expect("the player has not been created yet")
+            .2
+    }
+    pub fn player_sym(&self) -> &Symbol {
+        self.get_character(self.player.id)
+            .expect("the player has not been created yet")
+            .0
+    }
 }
 
 pub fn add_log(world: &mut World, message: impl Into<String>, color: colors::Color) {

@@ -141,8 +141,7 @@ fn use_item(inventory_id: u32, world: &mut game::World, by_targeting: bool) {
 
 fn use_medkit(_inventory_id: u32, world: &mut game::World, _by_targeting: bool) -> UseResult {
     // heal the player
-    let player_hp = world.get_character(world.player.id).unwrap().2.hp;
-    if player_hp == game::max_hp(world.player.id, world) {
+    if world.player_char().hp == game::max_hp(world.player.id, world) {
         game::add_log(world, "You are already at full health.", cfg::COLOR_ORANGE);
         return UseResult::Cancelled;
     }
@@ -157,7 +156,7 @@ fn shoot_slingshot(_inventory_id: u32, world: &mut game::World, _by_targeting: b
     if let Some(monster_id) = monster_id {
         let monster = world.get_character_mut(monster_id).unwrap().2;
         if let Some(xp) = game::take_damage(monster, cfg::SLINGSHOT_DAMAGE) {
-            world.get_character_mut(world.player.id).unwrap().2.xp += xp;
+            world.player_char_mut().xp += xp;
         }
         let monster_name = world.get_character(monster_id).unwrap().1.name.clone();
         game::add_log(
@@ -190,7 +189,7 @@ fn closest_monster(max_range: i32, world: &game::World) -> Option<u32> {
         .filter(|(id, ..)| (*id != world.player.id) && world.check_fov(*id))
         .map(|(id, sym, ..)| (id, sym.x, sym.y));
     for (id, enemy_x, enemy_y) in enemies {
-        let player_symbol = world.get_character(world.player.id).unwrap().0;
+        let player_symbol = world.player_sym();
         // calculate distance between this object and the player
         let dist = game::distance_to(player_symbol.x, player_symbol.y, enemy_x, enemy_y);
         if dist < closest_dist {
@@ -304,7 +303,7 @@ fn throw_blasting_cartridge(
                 cfg::COLOR_LIGHTEST_GREY,
             );
         }
-        world.get_character_mut(world.player.id).unwrap().2.xp += xp_to_gain;
+        world.player_char_mut().xp += xp_to_gain;
         UseResult::UsedUp
     }
 }
@@ -360,7 +359,7 @@ fn target_monster(world: &game::World, max_range: f32, (x, y): (i32, i32)) -> Op
 /// return tue if the position of a tile is clicked in player's FOV (optionally in a
 /// range).
 fn target_tile(world: &game::World, max_range: f32, (x, y): (i32, i32)) -> bool {
-    let player_symbol = world.get_character(world.player.id).unwrap().0;
+    let player_symbol = world.player_sym();
     let (player_x, player_y) = (player_symbol.x, player_symbol.y);
     let target_index_in_map = (y * cfg::MAP_WIDTH + x) as usize;
     world.map[target_index_in_map].in_fov
@@ -372,7 +371,7 @@ fn drop_item(inventory_id: u32, world: &mut game::World) {
     if maybe_equipment.is_some() {
         dequip(inventory_id, world);
     }
-    let player_symbol = world.get_character(world.player.id).unwrap().0;
+    let player_symbol = world.player_sym();
     let (player_x, player_y) = (player_symbol.x, player_symbol.y);
     let (symbol, map_obj, item, _) = world.get_item_mut(inventory_id).unwrap();
     item.owner = 0;

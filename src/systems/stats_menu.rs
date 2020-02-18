@@ -8,8 +8,9 @@ pub fn update(world: &mut game::World) {
     if !should_open_stats {
         return;
     }
-    if let Some((.., player, _)) = world.get_character(world.player.id) {
+    if world.get_character(world.player.id).is_some() {
         // show character information
+        let player = world.player_char();
         let level_up_xp = cfg::LEVEL_UP_BASE + player.level * cfg::LEVEL_UP_FACTOR;
         let msg = format!(
             "Character information\n\
