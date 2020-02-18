@@ -158,9 +158,9 @@ fn place_hints(world: &mut game::World, rooms: &mut Vec<Rect>) {
         (x + 4, y + 3, '\u{1A}'),
         (x + 2, y + 3, '\u{1B}'),
     ];
-    hints.iter().for_each(|&(x, y, char)| {
+    hints.iter().for_each(|&(x, y, glyph)| {
         world.create_entity(
-            Some(Symbol { x, y, char, color }),
+            Some(Symbol { x, y, glyph, color }),
             None,
             Some(MapObject {
                 name: name.to_string(),
@@ -291,7 +291,7 @@ fn place_objects(room: Rect, world: &mut game::World, level: u32) {
                     Symbol {
                         x,
                         y,
-                        char: '\u{82}',
+                        glyph: '\u{82}',
                         color: cfg::COLOR_ORANGE,
                     },
                     Character {
@@ -312,7 +312,7 @@ fn place_objects(room: Rect, world: &mut game::World, level: u32) {
                     Symbol {
                         x,
                         y,
-                        char: '\u{84}',
+                        glyph: '\u{84}',
                         color: cfg::COLOR_DARK_SKY,
                     },
                     Character {
@@ -363,7 +363,7 @@ fn create_v_tunnel(y1: i32, y2: i32, x: i32, map: &mut Vec<MapCell>) {
 }
 
 fn spawn_stairs(world: &mut game::World, x: i32, y: i32) {
-    let char = '\u{A4}';
+    let glyph = '\u{A4}';
     let color = cfg::COLOR_LIGHT_WALL;
     let map_object = MapObject {
         name: String::from("stairs"),
@@ -372,7 +372,7 @@ fn spawn_stairs(world: &mut game::World, x: i32, y: i32) {
         hidden: false,
     };
     world.create_entity(
-        Some(Symbol { x, y, char, color }),
+        Some(Symbol { x, y, glyph, color }),
         None,
         Some(map_object),
         None,
@@ -440,7 +440,7 @@ fn spawn_monster(
 }
 
 fn spawn_item(world: &mut game::World, item: Item, owner: u32, x: i32, y: i32) -> u32 {
-    let (char, name, color, equipment) = match item {
+    let (glyph, name, color, equipment) = match item {
         Item::Medkit => ('\u{90}', "Medkit", cfg::COLOR_DARK_RED, None),
         Item::SlingshotAmmo => (
             '\u{91}',
@@ -480,7 +480,7 @@ fn spawn_item(world: &mut game::World, item: Item, owner: u32, x: i32, y: i32) -
     let always_visible = false;
     let hidden = false;
     world.create_entity(
-        Some(Symbol { x, y, char, color }),
+        Some(Symbol { x, y, glyph, color }),
         None,
         Some(MapObject {
             name,
@@ -500,7 +500,7 @@ fn spawn_item(world: &mut game::World, item: Item, owner: u32, x: i32, y: i32) -
 fn spawn_player(world: &mut game::World) {
     let x = cfg::SCREEN_WIDTH / 2;
     let y = cfg::SCREEN_HEIGHT / 2;
-    let char = '\u{80}';
+    let glyph = '\u{80}';
     let color = cfg::COLOR_GREEN;
     let name = String::from("Player");
     let block = true;
@@ -516,7 +516,7 @@ fn spawn_player(world: &mut game::World) {
     let on_death = DeathCallback::Player;
     let looking_right = false;
     world.player.id = world.create_entity(
-        Some(Symbol { x, y, char, color }),
+        Some(Symbol { x, y, glyph, color }),
         None,
         Some(MapObject {
             name,
@@ -547,7 +547,7 @@ fn spawn_player(world: &mut game::World) {
     *sym = Symbol {
         x: 0,
         y: 0,
-        char: '\u{94}',
+        glyph: '\u{94}',
         color: cfg::COLOR_DARK_SEPIA,
     };
     map_obj.name = String::from("Pipe");

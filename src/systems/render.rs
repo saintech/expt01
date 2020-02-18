@@ -84,13 +84,13 @@ fn render_map_objects(world: &game::World, con: &mut impl console::Console) {
     to_draw
         .sort_by(|(_, _, map_obj1, ..), (_, _, map_obj2, ..)| map_obj1.block.cmp(&map_obj2.block));
     // draw the objects in the list
-    for (_, symbol, _, char, _) in to_draw {
-        let &Symbol { x, y, color, .. } = symbol;
+    for (_, symbol, _, maybe_char, _) in to_draw {
+        let &Symbol { x, y, glyph, color } = symbol;
         con.set_default_foreground(color);
-        let glyph = char
-            .filter(|&ch| ch.looking_right && ch.alive)
-            .and(Some((symbol.char as u8 + 1) as char))
-            .unwrap_or(symbol.char);
+        let glyph = maybe_char
+            .filter(|&char| char.looking_right && char.alive)
+            .and(Some((symbol.glyph as u8 + 1) as char))
+            .unwrap_or(glyph);
         con.put_char(x, y, glyph, console::BackgroundFlag::None);
     }
 }

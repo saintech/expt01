@@ -57,7 +57,7 @@ impl Default for PlayerAction {
 pub struct Symbol {
     pub x: i32,
     pub y: i32,
-    pub char: char,
+    pub glyph: char,
     pub color: colors::Color,
 }
 

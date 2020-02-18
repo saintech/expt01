@@ -100,7 +100,7 @@ fn clear_dungeon(world: &mut game::World) {
         let symbol = Symbol {
             x: world.symbols[indexes.symbol.unwrap()].x,
             y: world.symbols[indexes.symbol.unwrap()].y,
-            char: world.symbols[indexes.symbol.unwrap()].char,
+            glyph: world.symbols[indexes.symbol.unwrap()].glyph,
             color: world.symbols[indexes.symbol.unwrap()].color,
         };
         let map_object = MapObject {
@@ -140,7 +140,7 @@ fn clear_dungeon(world: &mut game::World) {
         let symbol = Symbol {
             x: sym.x,
             y: sym.y,
-            char: sym.char,
+            glyph: sym.glyph,
             color: sym.color,
         };
         let map_object = MapObject {

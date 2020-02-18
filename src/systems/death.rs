@@ -27,7 +27,7 @@ fn player_death(_id: u32, world: &mut game::World) {
     game::add_log(world, "You died!", cfg::COLOR_DARK_RED);
     // for added effect, transform the player into a corpse!
     let (symbol, _, char, _) = world.get_character_mut(world.player.id).unwrap();
-    symbol.char = '\u{A3}';
+    symbol.glyph = '\u{A3}';
     symbol.color = cfg::COLOR_DARK_RED;
     char.on_death = DeathCallback::None;
 }
@@ -43,7 +43,7 @@ fn monster_death(monster_id: u32, world: &mut game::World) {
         cfg::COLOR_ORANGE,
     );
     let (symbol, map_obj, ..) = world.get_character_mut(monster_id).unwrap();
-    symbol.char = '\u{A3}';
+    symbol.glyph = '\u{A3}';
     symbol.color = cfg::COLOR_DARK_RED;
     map_obj.block = false;
     map_obj.name = format!("remains of {}", map_obj.name);

@@ -9,7 +9,8 @@ pub fn update(world: &mut game::World) {
     }
     // let monsters take their turn
     if world.player_is_alive() && player_action_is_turn(world.player.action) {
-        let ai_ids: Vec<_> = world.entity_indexes
+        let ai_ids: Vec<_> = world
+            .entity_indexes
             .keys()
             .filter_map(|&id| world.get_character(id).and(Some(id)))
             .collect();
