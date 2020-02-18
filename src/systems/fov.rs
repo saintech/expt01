@@ -33,12 +33,12 @@ fn create_fov(world: &mut game::World, fov: &mut map::Map) {
 }
 
 fn compute_fov(world: &mut game::World, fov: &mut map::Map) {
-    let player_indexes = &world.entity_indexes[&world.player.id];
-    let player_symbol = &world.symbols[player_indexes.symbol.unwrap()];
-    if world.player.previous_player_position != (player_symbol.x, player_symbol.y) {
+    let player_symbol = world.get_character(world.player.id).unwrap().0;
+    let (player_x, player_y) = (player_symbol.x, player_symbol.y);
+    if world.player.previous_player_position != (player_x, player_y) {
         fov.compute_fov(
-            player_symbol.x,
-            player_symbol.y,
+            player_x,
+            player_y,
             cfg::TORCH_RADIUS,
             cfg::FOV_LIGHT_WALLS,
             cfg::FOV_ALGO,
@@ -53,6 +53,6 @@ fn compute_fov(world: &mut game::World, fov: &mut map::Map) {
                 }
             }
         }
-        world.player.previous_player_position = (player_symbol.x, player_symbol.y);
+        world.player.previous_player_position = (player_x, player_y);
     }
 }

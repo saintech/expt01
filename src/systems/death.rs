@@ -6,19 +6,11 @@ pub fn update(world: &mut game::World) {
     if world.player.state != PlayerState::MakingTurn {
         return;
     }
-    let callbacks = world
-        .entity_indexes
-        .iter()
-        .filter_map(|(&id, indexes)| {
-            indexes
-                .character
-                .filter(|&ch| {
-                    !world.characters[ch].alive
-                        && (world.characters[ch].on_death != DeathCallback::None)
-                })
-                .map(|ch| (id, world.characters[ch].on_death))
-        })
-        .collect::<Vec<_>>();
+    let callbacks: Vec<_> = world
+        .character_iter()
+        .filter(|(.., char, _)| !char.alive && (char.on_death != DeathCallback::None))
+        .map(|(id, .., char, _)| (id, char.on_death))
+        .collect();
     for (id, callback) in callbacks {
         use DeathCallback::*;
         let callback: fn(u32, &mut game::World) = match callback {
@@ -34,18 +26,15 @@ fn player_death(_id: u32, world: &mut game::World) {
     // the game ended!
     game::add_log(world, "You died!", cfg::COLOR_DARK_RED);
     // for added effect, transform the player into a corpse!
-    let indexes = &world.entity_indexes[&world.player.id];
-    let symbol = &mut world.symbols[indexes.symbol.unwrap()];
+    let (symbol, _, char, _) = world.get_character_mut(world.player.id).unwrap();
     symbol.char = '\u{A3}';
     symbol.color = cfg::COLOR_DARK_RED;
-    let player = &mut world.characters[indexes.character.unwrap()];
-    player.on_death = DeathCallback::None;
+    char.on_death = DeathCallback::None;
 }
 
 fn monster_death(monster_id: u32, world: &mut game::World) {
-    let indexes = &world.entity_indexes[&monster_id];
-    let name = world.map_objects[indexes.map_object.unwrap()].name.clone();
-    let xp = world.characters[indexes.character.unwrap()].xp;
+    let name = world.get_character(monster_id).unwrap().1.name.clone();
+    let xp = world.get_character(monster_id).unwrap().2.xp;
     // transform it into a nasty corpse! it doesn't block, can't be
     // attacked and doesn't move
     game::add_log(
@@ -53,12 +42,10 @@ fn monster_death(monster_id: u32, world: &mut game::World) {
         format!("{} is dead! You gain {} experience points.", name, xp),
         cfg::COLOR_ORANGE,
     );
-    let indexes = world.entity_indexes.get_mut(&monster_id).unwrap();
-    let symbol = &mut world.symbols[indexes.symbol.unwrap()];
-    let map_object = &mut world.map_objects[indexes.map_object.unwrap()];
+    let (symbol, map_obj, ..) = world.get_character_mut(monster_id).unwrap();
     symbol.char = '\u{A3}';
     symbol.color = cfg::COLOR_DARK_RED;
-    map_object.block = false;
-    indexes.character = None;
-    map_object.name = format!("remains of {}", map_object.name);
+    map_obj.block = false;
+    map_obj.name = format!("remains of {}", map_obj.name);
+    world.entity_indexes.get_mut(&monster_id).unwrap().character = None;
 }

@@ -8,16 +8,24 @@ pub fn update(world: &mut game::World) {
         return;
     }
     // let monsters take their turn
-    let player_indexes = &world.entity_indexes[&world.player.id];
-    let player = &world.characters[player_indexes.character.unwrap()];
-    if player.alive && player_action_is_turn(world.player.action) {
-        let ai_ids: Vec<_> = world
-            .entity_indexes
-            .iter()
-            .filter_map(|(&id, indexes)| indexes.character.and(indexes.ai.and(Some(id))))
+    if world.player_is_alive() && player_action_is_turn(world.player.action) {
+        let ai_ids: Vec<_> = world.entity_indexes
+            .keys()
+            .filter_map(|&id| world.get_character(id).and(Some(id)))
             .collect();
         for id in ai_ids {
-            ai_take_turn(id, world);
+            let ai_container = world.get_character_mut(id).unwrap().3;
+            if let Some(ai) = ai_container.option.take() {
+                let new_ai = match ai {
+                    Ai::Basic => ai_basic(id, world),
+                    Ai::Confused {
+                        previous_ai,
+                        num_turns,
+                    } => ai_confused(id, world, previous_ai, num_turns),
+                };
+                let ai_container = world.get_character_mut(id).unwrap().3;
+                ai_container.option.replace(new_ai);
+            }
         }
     }
 }
@@ -31,35 +39,18 @@ fn player_action_is_turn(action: PlayerAction) -> bool {
     };
 }
 
-fn ai_take_turn(id: u32, world: &mut game::World) {
-    let ai_index = world.entity_indexes[&id].ai.unwrap();
-    if let Some(ai) = world.ais[ai_index].option.take() {
-        let new_ai = match ai {
-            Ai::Basic => ai_basic(id, world),
-            Ai::Confused {
-                previous_ai,
-                num_turns,
-            } => ai_confused(id, world, previous_ai, num_turns),
-        };
-        world.ais[ai_index].option = Some(new_ai);
-    }
-}
-
 fn ai_basic(monster_id: u32, world: &mut game::World) -> Ai {
-    let monster_indexes = &world.entity_indexes[&monster_id];
-    let monster_symbol = &world.symbols[monster_indexes.symbol.unwrap()];
+    let monster_symbol = world.get_character(monster_id).unwrap().0;
     let (monster_x, monster_y) = (monster_symbol.x, monster_symbol.y);
-    let player_indexes = &world.entity_indexes[&world.player.id];
-    let player_hp = world.characters[player_indexes.character.unwrap()].hp;
-    let player_symbol = &world.symbols[player_indexes.symbol.unwrap()];
+    let player_hp = world.get_character(world.player.id).unwrap().2.hp;
+    let player_symbol = world.get_character(world.player.id).unwrap().0;
     let (player_x, player_y) = (player_symbol.x, player_symbol.y);
     if (monster_x > player_x) || ((monster_x == player_x) && (monster_y < player_y)) {
-        world.characters[monster_indexes.character.unwrap()].looking_right = false;
+        world.get_character_mut(monster_id).unwrap().2.looking_right = false;
     } else {
-        world.characters[monster_indexes.character.unwrap()].looking_right = true;
+        world.get_character_mut(monster_id).unwrap().2.looking_right = true;
     }
-    let is_in_fov = world.map[(monster_y * cfg::MAP_WIDTH + monster_x) as usize].in_fov;
-    if is_in_fov {
+    if world.check_fov(monster_id) {
         if game::distance_to(monster_x, monster_y, player_x, player_y) >= 2.0 {
             // move towards player if far away
             move_towards(monster_id, player_x, player_y, world);
@@ -72,8 +63,7 @@ fn ai_basic(monster_id: u32, world: &mut game::World) -> Ai {
 }
 
 fn move_towards(id: u32, target_x: i32, target_y: i32, world: &mut game::World) {
-    let object_indexes = &world.entity_indexes[&id];
-    let &Symbol { x, y, .. } = &world.symbols[object_indexes.symbol.unwrap()];
+    let &Symbol { x, y, .. } = world.get_character(id).unwrap().0;
     // vector from this object to the target, and distance
     let dx = target_x - x;
     let dy = target_y - y;
@@ -91,10 +81,7 @@ fn ai_confused(
     previous_ai: Box<Ai>,
     num_turns: i32,
 ) -> Ai {
-    let monster_indexes = &world.entity_indexes[&monster_id];
-    let monster_name = world.map_objects[monster_indexes.map_object.unwrap()]
-        .name
-        .clone();
+    let monster_name = world.get_character(monster_id).unwrap().1.name.clone();
     if num_turns >= 0 {
         // still confused ...
         // move in a random direction, and decrease the number of turns confused

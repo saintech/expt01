@@ -5,15 +5,9 @@ use crate::game;
 fn get_lvl_up_player(world: &mut game::World) -> Option<&mut Character> {
     if world.player.state == PlayerState::MakingTurn {
         world
-            .entity_indexes
-            .get(&world.player.id)
-            .map(|player_indexes| player_indexes.character.unwrap())
-            .map(move |player_index| &mut world.characters[player_index])
-            .filter(|player_character| {
-                let level_up_xp =
-                    cfg::LEVEL_UP_BASE + player_character.level * cfg::LEVEL_UP_FACTOR;
-                player_character.xp >= level_up_xp
-            })
+            .get_character_mut(world.player.id)
+            .map(|(.., char, _)| char)
+            .filter(|char| char.xp >= cfg::LEVEL_UP_BASE + char.level * cfg::LEVEL_UP_FACTOR)
     } else {
         None
     }
@@ -58,9 +52,9 @@ pub fn update(world: &mut game::World) {
         );
         world.player.state = PlayerState::InDialog;
     } else if lvl_up_is_open {
-        let player_indexes = &world.entity_indexes[&world.player.id];
-        let player = &mut world.characters[player_indexes.character.unwrap()];
-        let should_close_dialog = match world.player.action {
+        let player_action = world.player.action;
+        let player = world.get_character_mut(world.player.id).unwrap().2;
+        let should_close_dialog = match player_action {
             PlayerAction::SelectMenuItem(0) => {
                 player.base_max_hp += 20;
                 player.hp += 20;

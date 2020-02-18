@@ -8,11 +8,7 @@ pub fn update(world: &mut game::World) {
     if !should_open_stats {
         return;
     }
-    if let Some(player) = world
-        .entity_indexes
-        .get(&world.player.id)
-        .map(|indexes| &world.characters[indexes.character.unwrap()])
-    {
+    if let Some((.., player, _)) = world.get_character(world.player.id) {
         // show character information
         let level_up_xp = cfg::LEVEL_UP_BASE + player.level * cfg::LEVEL_UP_FACTOR;
         let msg = format!(

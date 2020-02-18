@@ -20,8 +20,8 @@ pub fn update(world: &mut game::World, tcod: &mut game::Tcod) {
     } else {
         render_main_menu_bg(&mut tcod.root);
     }
-    if let Some(player_indexes) = world.entity_indexes.get(&world.player.id) {
-        render_panel(world, player_indexes, &mut tcod.panel);
+    if world.get_character(world.player.id).is_some() {
+        render_panel(world, &mut tcod.panel);
         // blit the contents of `panel` to the root console
         console::blit(
             &tcod.panel,
@@ -75,37 +75,23 @@ fn render_map(map: &Vec<MapCell>, con: &mut impl console::Console) {
 
 fn render_map_objects(world: &game::World, con: &mut impl console::Console) {
     let mut to_draw: Vec<_> = world
-        .entity_indexes
-        .values()
-        .filter(|&indexes| {
-            if let (Some(mo), Some(sy)) = (indexes.map_object, indexes.symbol) {
-                let symbol = &world.symbols[sy];
-                let index_in_map = (symbol.y * cfg::MAP_WIDTH + symbol.x) as usize;
-                (world.map[index_in_map].in_fov && !world.map_objects[mo].hidden)
-                    || (world.map[index_in_map].explored && world.map_objects[mo].always_visible)
-            } else {
-                false
-            }
+        .map_obj_iter()
+        .filter(|(.., map_obj, _, cell)| {
+            (cell.in_fov && !map_obj.hidden) || (cell.explored && map_obj.always_visible)
         })
         .collect();
     // sort so that non-blocking objects come first
-    to_draw.sort_by(|&i1, &i2| {
-        let (mi1, mi2) = (i1.map_object.unwrap(), i2.map_object.unwrap());
-        world.map_objects[mi1]
-            .block
-            .cmp(&world.map_objects[mi2].block)
-    });
+    to_draw
+        .sort_by(|(_, _, map_obj1, ..), (_, _, map_obj2, ..)| map_obj1.block.cmp(&map_obj2.block));
     // draw the objects in the list
-    for indexes in to_draw {
-        let Symbol { x, y, char, color } = world.symbols[indexes.symbol.unwrap()];
+    for (_, symbol, _, char, _) in to_draw {
+        let &Symbol { x, y, color, .. } = symbol;
         con.set_default_foreground(color);
-        let char = indexes
-            .character
-            .and_then(|index| Some(&world.characters[index]))
+        let glyph = char
             .filter(|&ch| ch.looking_right && ch.alive)
-            .and(Some((char as u8 + 1) as char))
-            .unwrap_or(char);
-        con.put_char(x, y, char, console::BackgroundFlag::None);
+            .and(Some((symbol.char as u8 + 1) as char))
+            .unwrap_or(symbol.char);
+        con.put_char(x, y, glyph, console::BackgroundFlag::None);
     }
 }
 
@@ -131,11 +117,7 @@ fn render_main_menu_bg(con: &mut impl console::Console) {
     );
 }
 
-fn render_panel(
-    world: &game::World,
-    player_indexes: &game::EntityIndexes,
-    con: &mut impl console::Console,
-) {
+fn render_panel(world: &game::World, con: &mut impl console::Console) {
     // prepare to render the GUI panel
     con.set_default_background(cfg::COLOR_DARKEST_GREY);
     con.clear();
@@ -152,7 +134,7 @@ fn render_panel(
         con.print_rect(cfg::MSG_X, y, cfg::MSG_WIDTH, 0, msg);
     }
     // show the player's stats
-    let hp = world.characters[player_indexes.character.unwrap()].hp;
+    let hp = world.get_character(world.player.id).unwrap().2.hp;
     let max_hp = game::max_hp(world.player.id, world);
     render_bar(
         con,

@@ -1,7 +1,7 @@
 use crate::cfg;
 use crate::cmtp::{
-    Character, Equipment, LogMessage, MapObject, OwnedItem, Player, PlayerAction, PlayerState,
-    Symbol,
+    AiOption, Character, Equipment, LogMessage, MapObject, OwnedItem, Player, PlayerAction,
+    PlayerState, Symbol,
 };
 use crate::game;
 
@@ -9,30 +9,19 @@ pub fn update(world: &mut game::World) {
     if world.player.state != PlayerState::MakingTurn {
         return;
     }
-    let player_indexes = &world.entity_indexes[&world.player.id];
-    let player_character = &world.characters[player_indexes.character.unwrap()];
-    if (world.player.action != PlayerAction::InteractWithMap) || !player_character.alive {
+    if (world.player.action != PlayerAction::InteractWithMap) || !world.player_is_alive() {
         return;
     }
-    let player_symbol = &world.symbols[player_indexes.symbol.unwrap()];
+    let player_symbol = world.get_character(world.player.id).unwrap().0;
     let player_pos = (player_symbol.x, player_symbol.y);
     // pick up an item or go to next level
-    let item_id = world.entity_indexes.iter().find_map(|(&id, indexes)| {
-        indexes
-            .symbol
-            .filter(|&sy| (world.symbols[sy].x, world.symbols[sy].y) == player_pos)
-            .and(indexes.item)
-            .and(indexes.map_object)
-            .filter(|&mo| !world.map_objects[mo].hidden)
-            .and(Some(id))
-    });
-    let player_on_stairs = world.entity_indexes.values().any(|indexes| {
-        indexes
-            .symbol
-            .filter(|&sy| (world.symbols[sy].x, world.symbols[sy].y) == player_pos)
-            .filter(|_| world.map_objects[indexes.map_object.unwrap()].name == "stairs")
-            .is_some()
-    });
+    let item_id = world
+        .item_iter()
+        .find(|(_, sym, map_obj, ..)| ((sym.x, sym.y) == player_pos) && !map_obj.hidden)
+        .map(|(id, ..)| id);
+    let player_on_stairs = world
+        .map_obj_iter()
+        .any(|(_, sym, map_obj, ..)| ((sym.x, sym.y) == player_pos) && (map_obj.name == "stairs"));
     if let Some(item_id) = item_id {
         pick_item_up(item_id, world);
     } else if player_on_stairs {
@@ -42,8 +31,7 @@ pub fn update(world: &mut game::World) {
 
 /// add to the player's inventory and remove from the map
 fn pick_item_up(object_id: u32, world: &mut game::World) {
-    let indexes = &world.entity_indexes[&object_id];
-    let name = &world.map_objects[indexes.map_object.unwrap()].name.clone();
+    let name = world.get_item(object_id).unwrap().1.name.clone();
     let inventory_len = world
         .items
         .iter()
@@ -56,16 +44,17 @@ fn pick_item_up(object_id: u32, world: &mut game::World) {
             cfg::COLOR_DARK_RED,
         );
     } else {
-        world.items[indexes.item.unwrap()].owner = world.player.id;
-        world.map_objects[indexes.map_object.unwrap()].hidden = true;
-        let slot = indexes.equipment.map(|it| world.equipments[it].slot);
         game::add_log(
             world,
             format!("You picked up a {}!", name),
             cfg::COLOR_GREEN,
         );
+        let player_id = world.player.id;
+        let (_, map_obj, item, eqp) = world.get_item_mut(object_id).unwrap();
+        item.owner = player_id;
+        map_obj.hidden = true;
         // automatically equip, if the corresponding equipment slot is unused
-        if let Some(slot) = slot {
+        if let Some(&mut Equipment { slot, .. }) = eqp {
             if game::get_equipped_in_slot(slot, world).is_none() {
                 game::equip(object_id, world);
             }
@@ -136,7 +125,7 @@ fn clear_dungeon(world: &mut game::World) {
             None,
             Some(map_object),
             Some(character),
-            None,
+            Some(AiOption { option: None }),
             None,
             None,
             None,
@@ -144,76 +133,66 @@ fn clear_dungeon(world: &mut game::World) {
         );
     }
     // copy inventory
-    let inventory = world.entity_indexes.iter().filter(|&(_, indexes)| {
-        indexes
-            .item
-            .filter(|&it| world.items[it].owner == world.player.id)
-            .is_some()
-    });
-    for (&id, indexes) in inventory {
+    let inventory = world
+        .item_iter()
+        .filter(|(.., item, _)| item.owner == world.player.id);
+    for (_, sym, map_obj, item, equipment) in inventory {
         let symbol = Symbol {
-            x: world.symbols[indexes.symbol.unwrap()].x,
-            y: world.symbols[indexes.symbol.unwrap()].y,
-            char: world.symbols[indexes.symbol.unwrap()].char,
-            color: world.symbols[indexes.symbol.unwrap()].color,
+            x: sym.x,
+            y: sym.y,
+            char: sym.char,
+            color: sym.color,
         };
         let map_object = MapObject {
-            name: world.map_objects[indexes.map_object.unwrap()].name.clone(),
-            block: world.map_objects[indexes.map_object.unwrap()].block,
-            always_visible: world.map_objects[indexes.map_object.unwrap()].always_visible,
-            hidden: world.map_objects[indexes.map_object.unwrap()].hidden,
+            name: map_obj.name.clone(),
+            block: map_obj.block,
+            always_visible: map_obj.always_visible,
+            hidden: map_obj.hidden,
         };
         let item = OwnedItem {
-            item: world.items[indexes.item.unwrap()].item,
+            item: item.item,
             owner: temp_world.player.id,
         };
-        let equipment = indexes.equipment.map(|index| Equipment {
-            slot: world.equipments[index].slot,
-            equipped: world.equipments[index].equipped,
-            max_hp_bonus: world.equipments[index].max_hp_bonus,
-            defense_bonus: world.equipments[index].defense_bonus,
-            power_bonus: world.equipments[index].power_bonus,
+        let equipment = equipment.map(|equipment| Equipment {
+            slot: equipment.slot,
+            equipped: equipment.equipped,
+            max_hp_bonus: equipment.max_hp_bonus,
+            defense_bonus: equipment.defense_bonus,
+            power_bonus: equipment.power_bonus,
         });
-        let entity_indexes = game::EntityIndexes {
-            symbol: Some(temp_world.symbols.len()),
-            map_cell: None,
-            map_object: Some(temp_world.map_objects.len()),
-            character: None,
-            ai: None,
-            item: Some(temp_world.items.len()),
-            equipment: indexes.equipment.map(|_| temp_world.equipments.len()),
-            log_message: None,
-            dialog: None,
-        };
-        temp_world.symbols.push(symbol);
-        temp_world.map_objects.push(map_object);
-        temp_world.items.push(item);
-        equipment.map(|c| temp_world.equipments.push(c));
-        temp_world.entity_indexes.insert(id, entity_indexes);
+        temp_world.create_entity(
+            Some(symbol),
+            None,
+            Some(map_object),
+            None,
+            Some(AiOption { option: None }),
+            Some(item),
+            equipment,
+            None,
+            None,
+        );
     }
     // copy logs
     let logs = world
         .entity_indexes
-        .iter()
-        .filter(|&(_, indexes)| indexes.log_message.is_some());
-    for (&id, indexes) in logs {
+        .values()
+        .filter(|indexes| indexes.log_message.is_some());
+    for indexes in logs {
         let log_message = LogMessage(
             world.log[indexes.log_message.unwrap()].0.clone(),
             world.log[indexes.log_message.unwrap()].1,
         );
-        let entity_indexes = game::EntityIndexes {
-            symbol: None,
-            map_cell: None,
-            map_object: None,
-            character: None,
-            ai: None,
-            item: None,
-            equipment: None,
-            log_message: Some(temp_world.log.len()),
-            dialog: None,
-        };
-        temp_world.log.push(log_message);
-        temp_world.entity_indexes.insert(id, entity_indexes);
+        temp_world.create_entity(
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(log_message),
+            None,
+        );
     }
     *world = temp_world;
 }

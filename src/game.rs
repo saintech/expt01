@@ -1,4 +1,4 @@
-use crate::cfg::*;
+use crate::cfg;
 use crate::cmtp::*;
 use serde::{Deserialize, Serialize};
 use std::collections::btree_map::BTreeMap;
@@ -76,6 +76,138 @@ impl World {
         self.id_count += 1;
         self.entity_indexes.insert(self.id_count, entity_indexes);
         self.id_count
+    }
+    pub fn player_is_alive(&self) -> bool {
+        self.get_character(self.player.id)
+            .map_or(false, |(.., char, _)| char.alive)
+    }
+    pub fn get_character(&self, id: u32) -> Option<(&Symbol, &MapObject, &Character, &AiOption)> {
+        let indexes = self
+            .entity_indexes
+            .get(&id)
+            .map(|i| (i.symbol, i.map_object, i.character, i.ai));
+        if let Some((Some(si), Some(moi), Some(ci), Some(aii))) = indexes {
+            Some((
+                &self.symbols[si],
+                &self.map_objects[moi],
+                &self.characters[ci],
+                &self.ais[aii],
+            ))
+        } else {
+            None
+        }
+    }
+    pub fn get_character_mut(
+        &mut self,
+        id: u32,
+    ) -> Option<(&mut Symbol, &mut MapObject, &mut Character, &mut AiOption)> {
+        let indexes = self
+            .entity_indexes
+            .get(&id)
+            .map(|i| (i.symbol, i.map_object, i.character, i.ai));
+        if let Some((Some(si), Some(moi), Some(ci), Some(aii))) = indexes {
+            Some((
+                &mut self.symbols[si],
+                &mut self.map_objects[moi],
+                &mut self.characters[ci],
+                &mut self.ais[aii],
+            ))
+        } else {
+            None
+        }
+    }
+    pub fn character_iter(
+        &self,
+    ) -> impl Iterator<Item = (u32, &Symbol, &MapObject, &Character, &AiOption)> {
+        self.entity_indexes.keys().filter_map(move |&id| {
+            self.get_character(id)
+                .map(|char| (id, char.0, char.1, char.2, char.3))
+        })
+    }
+    pub fn check_fov(&self, id: u32) -> bool {
+        let &Symbol { x, y, .. } = self.get_map_obj(id).unwrap().0;
+        self.map[(y * cfg::MAP_WIDTH + x) as usize].in_fov
+    }
+    pub fn get_map_obj(
+        &self,
+        id: u32,
+    ) -> Option<(&Symbol, &MapObject, Option<&Character>, &MapCell)> {
+        let indexes = self
+            .entity_indexes
+            .get(&id)
+            .map(|i| (i.symbol, i.map_object, i.character));
+        if let Some((Some(si), Some(moi), ci)) = indexes {
+            let symbol = &self.symbols[si];
+            let index_in_map = (symbol.y * cfg::MAP_WIDTH + symbol.x) as usize;
+            Some((
+                symbol,
+                &self.map_objects[moi],
+                ci.map(|ci| &self.characters[ci]),
+                &self.map[index_in_map],
+            ))
+        } else {
+            None
+        }
+    }
+    pub fn map_obj_iter(
+        &self,
+    ) -> impl Iterator<Item = (u32, &Symbol, &MapObject, Option<&Character>, &MapCell)> {
+        self.entity_indexes.keys().filter_map(move |&id| {
+            self.get_map_obj(id)
+                .map(|char| (id, char.0, char.1, char.2, char.3))
+        })
+    }
+    pub fn get_item(
+        &self,
+        id: u32,
+    ) -> Option<(&Symbol, &MapObject, &OwnedItem, Option<&Equipment>)> {
+        let indexes = self
+            .entity_indexes
+            .get(&id)
+            .map(|i| (i.symbol, i.map_object, i.item, i.equipment));
+        if let Some((Some(si), Some(moi), Some(ii), ei)) = indexes {
+            Some((
+                &self.symbols[si],
+                &self.map_objects[moi],
+                &self.items[ii],
+                ei.map(|ei| &self.equipments[ei]),
+            ))
+        } else {
+            None
+        }
+    }
+    pub fn get_item_mut(
+        &mut self,
+        id: u32,
+    ) -> Option<(
+        &mut Symbol,
+        &mut MapObject,
+        &mut OwnedItem,
+        Option<&mut Equipment>,
+    )> {
+        let indexes = self
+            .entity_indexes
+            .get(&id)
+            .map(|i| (i.symbol, i.map_object, i.item, i.equipment));
+        if let Some((Some(si), Some(moi), Some(ii), ei)) = indexes {
+            let equipments = &mut self.equipments;
+            Some((
+                &mut self.symbols[si],
+                &mut self.map_objects[moi],
+                &mut self.items[ii],
+                ei.map(move |ei| &mut equipments[ei]),
+            ))
+        } else {
+            None
+        }
+    }
+    pub fn item_iter(
+        &self,
+    ) -> impl Iterator<Item = (u32, &Symbol, &MapObject, &OwnedItem, Option<&Equipment>)> {
+        self.entity_indexes.keys().filter_map(move |&id| {
+            self.get_item(id)
+                .map(|char| (id, char.0, char.1, char.2, char.3))
+        })
     }
 }
 
@@ -155,7 +287,7 @@ pub fn attack_by(attacker_id: u32, target_id: u32, world: &mut World) {
                 "{} attacks {} for {} hit points.",
                 attacker_name, target_name, damage
             ),
-            COLOR_LIGHTEST_GREY,
+            cfg::COLOR_LIGHTEST_GREY,
         );
         let attacker_index = world.entity_indexes[&attacker_id].character.unwrap();
         let target_index = world.entity_indexes[&target_id].character.unwrap();
@@ -170,7 +302,7 @@ pub fn attack_by(attacker_id: u32, target_id: u32, world: &mut World) {
                 "{} attacks {} but it has no effect!",
                 attacker_name, target_name
             ),
-            COLOR_LIGHTEST_GREY,
+            cfg::COLOR_LIGHTEST_GREY,
         );
     }
 }
@@ -196,14 +328,14 @@ pub fn equip(id: u32, world: &mut World) {
             add_log(
                 world,
                 format!("Equipped {} on {}.", name, world.equipments[index].slot),
-                COLOR_GREEN,
+                cfg::COLOR_GREEN,
             );
         }
     } else {
         add_log(
             world,
             format!("Can't equip {} because it's not an Equipment.", name),
-            COLOR_ORANGE,
+            cfg::COLOR_ORANGE,
         );
     }
 }
@@ -265,7 +397,7 @@ pub fn get_equipped_in_slot(slot: Slot, world: &mut World) -> Option<u32> {
 }
 
 fn is_blocked(x: i32, y: i32, world: &World) -> bool {
-    let index_in_map = (y * MAP_WIDTH + x) as usize;
+    let index_in_map = (y * cfg::MAP_WIDTH + x) as usize;
     // first test the map tile
     if world.map[index_in_map].block {
         return true;

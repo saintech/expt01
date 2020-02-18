@@ -2,12 +2,7 @@ use crate::cmtp::{PlayerAction, PlayerState};
 use crate::game;
 
 pub fn update(world: &mut game::World) {
-    if world.player.state != PlayerState::MakingTurn {
-        return;
-    }
-    let player_indexes = &world.entity_indexes[&world.player.id];
-    let player_character = &world.characters[player_indexes.character.unwrap()];
-    if !player_character.alive {
+    if (world.player.state != PlayerState::MakingTurn) || !world.player_is_alive() {
         return;
     }
     let (dx, dy) = match world.player.action {
@@ -22,25 +17,19 @@ pub fn update(world: &mut game::World) {
         _ => return,
     };
     // the coordinates the player is moving to/attacking
-    let x = world.symbols[player_indexes.symbol.unwrap()].x + dx;
-    let y = world.symbols[player_indexes.symbol.unwrap()].y + dy;
+    let player_symbol = world.get_character(world.player.id).unwrap().0;
+    let new_pos = (player_symbol.x + dx, player_symbol.y + dy);
+    let player = world.get_character_mut(world.player.id).unwrap().2;
     if (dy > 0) || ((dy == 0) && (dx < 0)) {
-        world.characters[player_indexes.character.unwrap()].looking_right = false;
+        player.looking_right = false;
     } else if (dy < 0) || ((dy == 0) && (dx > 0)) {
-        world.characters[player_indexes.character.unwrap()].looking_right = true;
+        player.looking_right = true;
     }
     // try to find an attackable object there
-    let target_id = world.entity_indexes.iter().find_map(|(&id, indexes)| {
-        if let (Some(_), Some(sy)) = (indexes.character, indexes.symbol) {
-            if (world.symbols[sy].x, world.symbols[sy].y) == (x, y) {
-                Some(id)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    });
+    let target_id = world
+        .character_iter()
+        .find(|(_, sym, ..)| ((sym.x, sym.y) == new_pos))
+        .map(|(id, ..)| id);
     // attack if target found, move otherwise
     match target_id {
         Some(target_id) => {

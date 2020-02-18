@@ -3,20 +3,11 @@ use crate::cmtp::{Ai, DialogBox, DialogKind, Item, PlayerAction, PlayerState};
 use crate::game;
 use std::f32;
 
-fn player_is_alive(world: &game::World) -> bool {
-    world
-        .entity_indexes
-        .get(&world.player.id)
-        .map(|player_indexes| &world.characters[player_indexes.character.unwrap()])
-        .filter(|player_character| player_character.alive)
-        .is_some()
-}
-
 fn is_opening_inventory(world: &game::World) -> bool {
     (world.player.state == PlayerState::MakingTurn)
         && ((world.player.action == PlayerAction::OpenInventory)
             || (world.player.action == PlayerAction::DropItem))
-        && player_is_alive(world)
+        && world.player_is_alive()
 }
 
 fn inventory_kind(dialog_box: &DialogBox) -> Option<DialogKind> {
@@ -58,7 +49,11 @@ pub fn update(world: &mut game::World) {
         world.player.state = PlayerState::InDialog;
     } else if let Some(dialog_kind) = opened_menu {
         let inventory_id = match world.player.action {
-            PlayerAction::SelectMenuItem(i) => get_inventory(world).get(i).copied(),
+            PlayerAction::SelectMenuItem(i) => world
+                .item_iter()
+                .filter(|(.., item, _)| item.owner == world.player.id)
+                .nth(i)
+                .map(|(id, ..)| id),
             PlayerAction::Cancel => {
                 world.dialogs.pop();
                 if world.dialogs.is_empty() {
@@ -85,38 +80,21 @@ pub fn update(world: &mut game::World) {
     }
 }
 
-fn get_inventory(world: &game::World) -> Vec<u32> {
-    world
-        .entity_indexes
-        .iter()
-        .filter_map(|(&id, indexes)| {
-            indexes
-                .item
-                .filter(|&it| world.items[it].owner == world.player.id)
-                .and(Some(id))
-        })
-        .collect()
-}
-
 fn add_inventory_menu(world: &mut game::World, kind: DialogKind, header: String) {
-    let inventory: Vec<_> = get_inventory(world);
     // how a menu with each item of the inventory as an option
-    let options = if inventory.len() == 0 {
-        vec![String::from("Inventory is empty.")]
-    } else {
-        inventory
-            .iter()
-            .map(|id| {
-                let name = &world.map_objects[world.entity_indexes[id].map_object.unwrap()].name;
-                world.entity_indexes[id]
-                    .equipment
-                    .filter(|&eq| world.equipments[eq].equipped)
-                    .map_or(name.clone(), |eq| {
-                        format!("{} (on {})", name, world.equipments[eq].slot)
-                    })
-            })
-            .collect()
-    };
+    let mut options: Vec<_> = world
+        .item_iter()
+        .filter(|(.., item, _)| item.owner == world.player.id)
+        .map(|(.., map_obj, _, eqp)| {
+            eqp.filter(|eqp| eqp.equipped)
+                .map_or(map_obj.name.clone(), |eqp| {
+                    format!("{} (on {})", map_obj.name, eqp.slot)
+                })
+        })
+        .collect();
+    if options.is_empty() {
+        options.push(String::from("Inventory is empty."));
+    }
     game::add_dialog_box(world, kind, header, options, cfg::INVENTORY_WIDTH);
 }
 
@@ -129,9 +107,9 @@ enum UseResult {
 
 fn use_item(inventory_id: u32, world: &mut game::World, by_targeting: bool) {
     // just call the "use_function" if it is defined
-    if let Some(item_index) = world.entity_indexes[&inventory_id].item {
+    if let Some((.., item, _)) = world.get_item(inventory_id) {
         use Item::*;
-        let on_use = match world.items[item_index].item {
+        let on_use = match item.item {
             Medkit => use_medkit,
             SlingshotAmmo => shoot_slingshot,
             Brick => throw_brick,
@@ -141,9 +119,8 @@ fn use_item(inventory_id: u32, world: &mut game::World, by_targeting: bool) {
         };
         match on_use(inventory_id, world, by_targeting) {
             UseResult::UsedUp => {
-                let item_indexes = &world.entity_indexes[&inventory_id];
                 // destroy after use, unless it was cancelled for some reason
-                world.items[item_indexes.item.unwrap()].owner = 0;
+                world.get_item_mut(inventory_id).unwrap().2.owner = 0;
                 world.entity_indexes.remove(&inventory_id);
             }
             UseResult::UsedAndKept => (),
@@ -153,10 +130,7 @@ fn use_item(inventory_id: u32, world: &mut game::World, by_targeting: bool) {
             }
         };
     } else {
-        let item_indexes = &world.entity_indexes[&inventory_id];
-        let name = world.map_objects[item_indexes.map_object.unwrap()]
-            .name
-            .clone();
+        let name = world.get_item_mut(inventory_id).unwrap().1.name.clone();
         game::add_log(
             world,
             format!("The {} cannot be used.", name),
@@ -167,9 +141,8 @@ fn use_item(inventory_id: u32, world: &mut game::World, by_targeting: bool) {
 
 fn use_medkit(_inventory_id: u32, world: &mut game::World, _by_targeting: bool) -> UseResult {
     // heal the player
-    let player_indexes = &world.entity_indexes[&world.player.id];
-    let player = &world.characters[player_indexes.character.unwrap()];
-    if player.hp == game::max_hp(world.player.id, world) {
+    let player_hp = world.get_character(world.player.id).unwrap().2.hp;
+    if player_hp == game::max_hp(world.player.id, world) {
         game::add_log(world, "You are already at full health.", cfg::COLOR_ORANGE);
         return UseResult::Cancelled;
     }
@@ -182,13 +155,11 @@ fn shoot_slingshot(_inventory_id: u32, world: &mut game::World, _by_targeting: b
     // find closest enemy (inside a maximum range and damage it)
     let monster_id = closest_monster(cfg::SLINGSHOT_RANGE, world);
     if let Some(monster_id) = monster_id {
-        let indexes = &world.entity_indexes[&monster_id];
-        let monster = &mut world.characters[indexes.character.unwrap()];
+        let monster = world.get_character_mut(monster_id).unwrap().2;
         if let Some(xp) = game::take_damage(monster, cfg::SLINGSHOT_DAMAGE) {
-            let player_indexes = &world.entity_indexes[&world.player.id];
-            world.characters[player_indexes.character.unwrap()].xp += xp;
+            world.get_character_mut(world.player.id).unwrap().2.xp += xp;
         }
-        let monster_name = world.map_objects[indexes.map_object.unwrap()].name.clone();
+        let monster_name = world.get_character(monster_id).unwrap().1.name.clone();
         game::add_log(
             world,
             format!(
@@ -214,20 +185,12 @@ fn shoot_slingshot(_inventory_id: u32, world: &mut game::World, _by_targeting: b
 fn closest_monster(max_range: i32, world: &game::World) -> Option<u32> {
     let mut closest_enemy = None;
     let mut closest_dist = (max_range + 1) as f32; // start with (slightly more than) maximum range
-    let enemies = world.entity_indexes.iter().filter_map(|(&id, indexes)| {
-        indexes
-            .character
-            .and(indexes.ai)
-            .and(indexes.symbol)
-            .filter(|&sy| {
-                let (enemy_x, enemy_y) = (world.symbols[sy].x, world.symbols[sy].y);
-                world.map[(enemy_y * cfg::MAP_WIDTH + enemy_x) as usize].in_fov
-            })
-            .map(|sy| (id, world.symbols[sy].x, world.symbols[sy].y))
-    });
+    let enemies = world
+        .character_iter()
+        .filter(|(id, ..)| (*id != world.player.id) && world.check_fov(*id))
+        .map(|(id, sym, ..)| (id, sym.x, sym.y));
     for (id, enemy_x, enemy_y) in enemies {
-        let player_indexes = &world.entity_indexes[&world.player.id];
-        let player_symbol = &world.symbols[player_indexes.symbol.unwrap()];
+        let player_symbol = world.get_character(world.player.id).unwrap().0;
         // calculate distance between this object and the player
         let dist = game::distance_to(player_symbol.x, player_symbol.y, enemy_x, enemy_y);
         if dist < closest_dist {
@@ -254,10 +217,9 @@ fn throw_brick(_inventory_id: u32, world: &mut game::World, by_targeting: bool) 
             PlayerAction::Cancel => return UseResult::Cancelled,
             _ => unreachable!(),
         };
-        let monster_id = target_monster(world, Some(cfg::BRICK_RANGE as f32), position);
+        let monster_id = target_monster(world, cfg::BRICK_RANGE, position);
         if let Some(monster_id) = monster_id {
-            let indexes = &world.entity_indexes[&monster_id];
-            let monster_ai = &mut world.ais[indexes.ai.unwrap()];
+            let monster_ai = world.get_character_mut(monster_id).unwrap().3;
             let old_ai = monster_ai.option.take().unwrap_or(Ai::Basic);
             // replace the monster's AI with a "confused" one; after
             // some turns it will restore the old AI
@@ -265,7 +227,7 @@ fn throw_brick(_inventory_id: u32, world: &mut game::World, by_targeting: bool) 
                 previous_ai: Box::new(old_ai),
                 num_turns: cfg::BRICK_NUM_TURNS,
             });
-            let monster_name = world.map_objects[indexes.map_object.unwrap()].name.clone();
+            let monster_name = world.get_character(monster_id).unwrap().1.name.clone();
             game::add_log(
                 world,
                 format!(
@@ -304,7 +266,7 @@ fn throw_blasting_cartridge(
             PlayerAction::Cancel => return UseResult::Cancelled,
             _ => unreachable!(),
         };
-        if !target_tile(world, None, (x, y)) {
+        if !target_tile(world, f32::INFINITY, (x, y)) {
             return UseResult::Cancelled;
         }
         game::add_log(
@@ -317,29 +279,21 @@ fn throw_blasting_cartridge(
         );
         let mut xp_to_gain = 0;
         let targets: Vec<_> = world
-            .entity_indexes
-            .iter()
-            .filter_map(|(&id, indexes)| {
-                indexes
-                    .character
-                    .and(indexes.symbol)
-                    .map(|sy| (world.symbols[sy].x, world.symbols[sy].y))
-                    .filter(|&(cx, cy)| {
-                        game::distance_to(cx, cy, x, y) <= cfg::BLASTING_RADIUS as f32
-                    })
-                    .and(Some(id))
+            .character_iter()
+            .filter(|(_, sym, ..)| {
+                game::distance_to(sym.x, sym.y, x, y) <= cfg::BLASTING_RADIUS as f32
             })
+            .map(|(id, ..)| id)
             .collect();
         for target_id in targets {
-            let indexes = &world.entity_indexes[&target_id];
-            let target = &mut world.characters[indexes.character.unwrap()];
+            let target = world.get_character_mut(target_id).unwrap().2;
             if let Some(xp) = game::take_damage(target, cfg::BLASTING_DAMAGE) {
                 if target_id != world.player.id {
                     // Don't reward the player for burning themself!
                     xp_to_gain += xp;
                 }
             }
-            let target_name = world.map_objects[indexes.map_object.unwrap()].name.clone();
+            let target_name = world.get_character(target_id).unwrap().1.name.clone();
             game::add_log(
                 world,
                 format!(
@@ -350,15 +304,13 @@ fn throw_blasting_cartridge(
                 cfg::COLOR_LIGHTEST_GREY,
             );
         }
-        world.characters[world.entity_indexes[&world.player.id].character.unwrap()].xp +=
-            xp_to_gain;
+        world.get_character_mut(world.player.id).unwrap().2.xp += xp_to_gain;
         UseResult::UsedUp
     }
 }
 
 fn toggle_equipment(inventory_id: u32, world: &mut game::World, _by_targeting: bool) -> UseResult {
-    let indexes = &world.entity_indexes[&inventory_id];
-    let equipment = &world.equipments[indexes.equipment.unwrap()];
+    let equipment = world.get_item(inventory_id).unwrap().3.unwrap();
     if equipment.equipped {
         dequip(inventory_id, world);
     } else {
@@ -373,14 +325,14 @@ fn toggle_equipment(inventory_id: u32, world: &mut game::World, _by_targeting: b
 
 /// Dequip object and show a message about it
 fn dequip(id: u32, world: &mut game::World) {
-    let indexes = &world.entity_indexes[&id];
-    let name = world.map_objects[indexes.map_object.unwrap()].name.clone();
-    if let Some(index) = indexes.equipment {
-        if world.equipments[index].equipped {
-            world.equipments[index].equipped = false;
+    let name = world.get_item(id).unwrap().1.name.clone();
+    if let Some(equipment) = world.get_item_mut(id).unwrap().3 {
+        if equipment.equipped {
+            equipment.equipped = false;
+            let slot = equipment.slot;
             game::add_log(
                 world,
-                format!("Dequipped {} from {}.", name, world.equipments[index].slot),
+                format!("Dequipped {} from {}.", name, slot),
                 cfg::COLOR_DARK_SKY,
             );
         }
@@ -394,16 +346,12 @@ fn dequip(id: u32, world: &mut game::World) {
 }
 
 /// returns a clicked monster inside FOV up to a range, or None
-fn target_monster(world: &game::World, max_range: Option<f32>, (x, y): (i32, i32)) -> Option<u32> {
+fn target_monster(world: &game::World, max_range: f32, (x, y): (i32, i32)) -> Option<u32> {
     if target_tile(world, max_range, (x, y)) {
-        world.entity_indexes.iter().find_map(|(&id, indexes)| {
-            indexes
-                .character
-                .and(indexes.symbol)
-                .filter(|&sy| (world.symbols[sy].x, world.symbols[sy].y) == (x, y))
-                .filter(|_| id != world.player.id)
-                .and(Some(id))
-        })
+        world
+            .character_iter()
+            .find(|(id, sym, ..)| ((sym.x, sym.y) == (x, y)) && (*id != world.player.id))
+            .map(|(id, ..)| id)
     } else {
         None
     }
@@ -411,30 +359,27 @@ fn target_monster(world: &game::World, max_range: Option<f32>, (x, y): (i32, i32
 
 /// return tue if the position of a tile is clicked in player's FOV (optionally in a
 /// range).
-fn target_tile(world: &game::World, max_range: Option<f32>, (x, y): (i32, i32)) -> bool {
-    let max_range = max_range.unwrap_or(f32::INFINITY);
-    let player_indexes = &world.entity_indexes[&world.player.id];
-    let player_symbol = &world.symbols[player_indexes.symbol.unwrap()];
-    let target_index_in_map = (y * cfg::MAP_WIDTH + x) as usize;
+fn target_tile(world: &game::World, max_range: f32, (x, y): (i32, i32)) -> bool {
+    let player_symbol = world.get_character(world.player.id).unwrap().0;
     let (player_x, player_y) = (player_symbol.x, player_symbol.y);
+    let target_index_in_map = (y * cfg::MAP_WIDTH + x) as usize;
     world.map[target_index_in_map].in_fov
         && (game::distance_to(player_x, player_y, x, y) <= max_range)
 }
 
 fn drop_item(inventory_id: u32, world: &mut game::World) {
-    if world.entity_indexes[&inventory_id].equipment.is_some() {
+    let maybe_equipment = world.get_item(inventory_id).unwrap().3;
+    if maybe_equipment.is_some() {
         dequip(inventory_id, world);
     }
-    let indexes = &world.entity_indexes[&inventory_id];
-    world.items[indexes.item.unwrap()].owner = 0;
-    world.map_objects[indexes.map_object.unwrap()].hidden = false;
-    let player_indexes = &world.entity_indexes[&world.player.id];
-    let player_x = world.symbols[player_indexes.symbol.unwrap()].x;
-    let player_y = world.symbols[player_indexes.symbol.unwrap()].y;
-    let symbol = &mut world.symbols[indexes.symbol.unwrap()];
+    let player_symbol = world.get_character(world.player.id).unwrap().0;
+    let (player_x, player_y) = (player_symbol.x, player_symbol.y);
+    let (symbol, map_obj, item, _) = world.get_item_mut(inventory_id).unwrap();
+    item.owner = 0;
+    map_obj.hidden = false;
     symbol.x = player_x;
     symbol.y = player_y;
-    let name = &world.map_objects[indexes.map_object.unwrap()].name.clone();
+    let name = map_obj.name.clone();
     game::add_log(
         world,
         format!("You dropped a {}.", name),

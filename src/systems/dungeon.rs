@@ -87,9 +87,9 @@ fn make_map(world: &mut game::World, level: u32) {
             let (new_x, new_y) = new_room.center();
             if rooms.is_empty() {
                 // this is the first room, where the player starts at
-                let player_indexes = &world.entity_indexes[&world.player.id];
-                world.symbols[player_indexes.symbol.unwrap()].x = new_x;
-                world.symbols[player_indexes.symbol.unwrap()].y = new_y;
+                let player_symbol = world.get_character_mut(world.player.id).unwrap().0;
+                player_symbol.x = new_x;
+                player_symbol.y = new_y;
             } else {
                 // all rooms after the first: connect it to the previous room with a tunnel
                 // center coordinates of the previous room
@@ -174,9 +174,9 @@ fn place_hints(world: &mut game::World, rooms: &mut Vec<Rect>) {
             None,
         );
     });
-    let player_indexes = &world.entity_indexes[&world.player.id];
-    world.symbols[player_indexes.symbol.unwrap()].x = x + 3;
-    world.symbols[player_indexes.symbol.unwrap()].y = y + 3;
+    let player_symbol = world.get_character_mut(world.player.id).unwrap().0;
+    player_symbol.x = x + 3;
+    player_symbol.y = y + 3;
     rooms.push(new_room);
 }
 
@@ -535,7 +535,7 @@ fn spawn_player(world: &mut game::World) {
             on_death,
             looking_right,
         }),
-        None,
+        Some(AiOption { option: None }),
         None,
         None,
         None,
@@ -543,16 +543,15 @@ fn spawn_player(world: &mut game::World) {
     );
     // initial equipment: Pipe
     let pipe_id = spawn_item(world, Item::Melee, world.player.id, 0, 0);
-    let pipe_indexes = &world.entity_indexes[&pipe_id];
-    world.symbols[pipe_indexes.symbol.unwrap()] = Symbol {
+    let (sym, map_obj, _, eqp) = world.get_item_mut(pipe_id).unwrap();
+    *sym = Symbol {
         x: 0,
         y: 0,
         char: '\u{94}',
         color: cfg::COLOR_DARK_SEPIA,
     };
-    world.map_objects[pipe_indexes.map_object.unwrap()].name = String::from("Pipe");
-    world.equipments[pipe_indexes.equipment.unwrap()].power_bonus = 2;
-    //    initialise_fov(world, tcod);
+    map_obj.name = String::from("Pipe");
+    eqp.unwrap().power_bonus = 2;
     game::add_log(
         world,
         String::from(
