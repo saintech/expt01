@@ -14,7 +14,7 @@ pub fn update(world: &mut game::World) {
             .iter()
             .map(|s| s.to_string())
             .collect();
-        game::add_dialog_box(world, DialogKind::MainMenu, String::from(""), choices, 24)
+        world.add_dialog_box(DialogKind::MainMenu, String::from(""), choices, 24)
     } else if menu_is_open {
         world.player.state = PlayerState::InDialog;
         match world.player.action {
@@ -29,13 +29,7 @@ pub fn update(world: &mut game::World) {
                     world.player.state = PlayerState::MakingTurn;
                 } else {
                     let msg = "\nNo saved game to load.\n";
-                    game::add_dialog_box(
-                        world,
-                        DialogKind::MessageBox,
-                        String::from(msg),
-                        vec![],
-                        24,
-                    );
+                    world.add_dialog_box(DialogKind::MessageBox, String::from(msg), vec![], 24);
                 }
             }
             // "Quit"

@@ -95,7 +95,7 @@ fn add_inventory_menu(world: &mut game::World, kind: DialogKind, header: String)
     if options.is_empty() {
         options.push(String::from("Inventory is empty."));
     }
-    game::add_dialog_box(world, kind, header, options, cfg::INVENTORY_WIDTH);
+    world.add_dialog_box(kind, header, options, cfg::INVENTORY_WIDTH);
 }
 
 enum UseResult {
@@ -124,30 +124,39 @@ fn use_item(inventory_id: u32, world: &mut game::World, by_targeting: bool) {
                 world.entity_indexes.remove(&inventory_id);
             }
             UseResult::UsedAndKept => (),
-            UseResult::Cancelled => game::add_log(world, "Cancelled", cfg::COLOR_LIGHTEST_GREY),
+            UseResult::Cancelled => world.add_log(cfg::COLOR_LIGHTEST_GREY, "Cancelled"),
             UseResult::NeedTargeting => {
                 world.player.state = PlayerState::TargetingTile(inventory_id)
             }
         };
     } else {
         let name = world.get_item_mut(inventory_id).unwrap().1.name.clone();
-        game::add_log(
-            world,
-            format!("The {} cannot be used.", name),
+        world.add_log(
             cfg::COLOR_LIGHTEST_GREY,
+            format!("The {} cannot be used.", name),
         );
     }
 }
 
 fn use_medkit(_inventory_id: u32, world: &mut game::World, _by_targeting: bool) -> UseResult {
     // heal the player
-    if world.player_char().hp == game::max_hp(world.player.id, world) {
-        game::add_log(world, "You are already at full health.", cfg::COLOR_ORANGE);
+    if world.player_char().hp == world.max_hp(world.player.id) {
+        world.add_log(cfg::COLOR_ORANGE, "You are already at full health.");
         return UseResult::Cancelled;
     }
-    game::add_log(world, "Your wounds start to feel better!", cfg::COLOR_GREEN);
-    game::heal(world.player.id, cfg::HEAL_AMOUNT, world);
+    world.add_log(cfg::COLOR_GREEN, "Your wounds start to feel better!");
+    heal(world.player.id, cfg::HEAL_AMOUNT, world);
     UseResult::UsedUp
+}
+
+/// heal by the given amount, without going over the maximum
+fn heal(id: u32, amount: i32, world: &mut game::World) {
+    let max_hp = world.max_hp(id);
+    let character = world.get_character_mut(id).unwrap().2;
+    character.hp += amount;
+    if character.hp > max_hp {
+        character.hp = max_hp;
+    }
 }
 
 fn shoot_slingshot(_inventory_id: u32, world: &mut game::World, _by_targeting: bool) -> UseResult {
@@ -159,23 +168,18 @@ fn shoot_slingshot(_inventory_id: u32, world: &mut game::World, _by_targeting: b
             world.player_char_mut().xp += xp;
         }
         let monster_name = world.get_character(monster_id).unwrap().1.name.clone();
-        game::add_log(
-            world,
+        world.add_log(
+            cfg::COLOR_LIGHTEST_GREY,
             format!(
                 "A Steel Ball whizzed to a {}! The damage is {} hit points.",
                 monster_name,
                 cfg::SLINGSHOT_DAMAGE
             ),
-            cfg::COLOR_LIGHTEST_GREY,
         );
         UseResult::UsedUp
     } else {
         // no enemy found within maximum range
-        game::add_log(
-            world,
-            "No enemy is close enough to shoot.",
-            cfg::COLOR_DARK_SKY,
-        );
+        world.add_log(cfg::COLOR_DARK_SKY, "No enemy is close enough to shoot.");
         UseResult::Cancelled
     }
 }
@@ -204,10 +208,9 @@ fn closest_monster(max_range: i32, world: &game::World) -> Option<u32> {
 fn throw_brick(_inventory_id: u32, world: &mut game::World, by_targeting: bool) -> UseResult {
     if !by_targeting {
         // ask the player for a target to confuse
-        game::add_log(
-            world,
-            "Left-click an enemy to throw the brick, or right-click to cancel.",
+        world.add_log(
             cfg::COLOR_DARK_SKY,
+            "Left-click an enemy to throw the brick, or right-click to cancel.",
         );
         UseResult::NeedTargeting
     } else {
@@ -227,21 +230,16 @@ fn throw_brick(_inventory_id: u32, world: &mut game::World, by_targeting: bool) 
                 num_turns: cfg::BRICK_NUM_TURNS,
             });
             let monster_name = world.get_character(monster_id).unwrap().1.name.clone();
-            game::add_log(
-                world,
+            world.add_log(
+                cfg::COLOR_LIGHTEST_GREY,
                 format!(
                     "The eyes of {} look vacant, as he starts to stumble around!",
                     monster_name
                 ),
-                cfg::COLOR_LIGHTEST_GREY,
             );
             UseResult::UsedUp
         } else {
-            game::add_log(
-                world,
-                "No enemy is close enough to throw.",
-                cfg::COLOR_DARK_SKY,
-            );
+            world.add_log(cfg::COLOR_DARK_SKY, "No enemy is close enough to throw.");
             UseResult::Cancelled
         }
     }
@@ -253,10 +251,9 @@ fn throw_blasting_cartridge(
     by_targeting: bool,
 ) -> UseResult {
     if !by_targeting {
-        game::add_log(
-            world,
-            "Left-click a target tile to throw the charge, or right-click to cancel.",
+        world.add_log(
             cfg::COLOR_DARK_SKY,
+            "Left-click a target tile to throw the charge, or right-click to cancel.",
         );
         UseResult::NeedTargeting
     } else {
@@ -268,13 +265,12 @@ fn throw_blasting_cartridge(
         if !target_tile(world, f32::INFINITY, (x, y)) {
             return UseResult::Cancelled;
         }
-        game::add_log(
-            world,
+        world.add_log(
+            cfg::COLOR_ORANGE,
             format!(
                 "The Blasting Cartridge explodes, crushing everything within {} tiles!",
                 cfg::BLASTING_RADIUS
             ),
-            cfg::COLOR_ORANGE,
         );
         let mut xp_to_gain = 0;
         let targets: Vec<_> = world
@@ -293,14 +289,13 @@ fn throw_blasting_cartridge(
                 }
             }
             let target_name = world.get_character(target_id).unwrap().1.name.clone();
-            game::add_log(
-                world,
+            world.add_log(
+                cfg::COLOR_LIGHTEST_GREY,
                 format!(
                     "The {} gets damaged for {} hit points.",
                     target_name,
                     cfg::BLASTING_DAMAGE
                 ),
-                cfg::COLOR_LIGHTEST_GREY,
             );
         }
         world.player_char_mut().xp += xp_to_gain;
@@ -314,7 +309,7 @@ fn toggle_equipment(inventory_id: u32, world: &mut game::World, _by_targeting: b
         dequip(inventory_id, world);
     } else {
         // if the slot is already being used, dequip whatever is there first
-        if let Some(current) = game::get_equipped_in_slot(equipment.slot, world) {
+        if let Some(current) = world.get_equipped_in_slot(equipment.slot) {
             dequip(current, world);
         }
         game::equip(inventory_id, world);
@@ -329,17 +324,15 @@ fn dequip(id: u32, world: &mut game::World) {
         if equipment.equipped {
             equipment.equipped = false;
             let slot = equipment.slot;
-            game::add_log(
-                world,
-                format!("Dequipped {} from {}.", name, slot),
+            world.add_log(
                 cfg::COLOR_DARK_SKY,
+                format!("Dequipped {} from {}.", name, slot),
             );
         }
     } else {
-        game::add_log(
-            world,
-            format!("Can't dequip {} because it's not an Equipment.", name),
+        world.add_log(
             cfg::COLOR_ORANGE,
+            format!("Can't dequip {} because it's not an Equipment.", name),
         );
     }
 }
@@ -379,9 +372,5 @@ fn drop_item(inventory_id: u32, world: &mut game::World) {
     symbol.x = player_x;
     symbol.y = player_y;
     let name = map_obj.name.clone();
-    game::add_log(
-        world,
-        format!("You dropped a {}.", name),
-        cfg::COLOR_DARK_SKY,
-    );
+    world.add_log(cfg::COLOR_DARK_SKY, format!("You dropped a {}.", name));
 }

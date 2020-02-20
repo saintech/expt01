@@ -135,7 +135,7 @@ fn render_panel(world: &game::World, con: &mut impl console::Console) {
     }
     // show the player's stats
     let hp = world.player_char().hp;
-    let max_hp = game::max_hp(world.player.id, world);
+    let max_hp = world.max_hp(world.player.id);
     render_bar(
         con,
         1,

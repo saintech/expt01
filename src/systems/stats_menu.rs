@@ -25,12 +25,11 @@ pub fn update(world: &mut game::World) {
             player.level,
             player.xp,
             level_up_xp,
-            game::max_hp(world.player.id, world),
-            game::power(world.player.id, world),
-            game::defense(world.player.id, world),
+            world.max_hp(world.player.id),
+            world.power(world.player.id),
+            world.defense(world.player.id),
         );
-        game::add_dialog_box(
-            world,
+        world.add_dialog_box(
             DialogKind::MessageBox,
             msg,
             vec![],

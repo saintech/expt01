@@ -20,5 +20,5 @@ pub fn update(world: &mut game::World) {
                \x20                    End, Page Up,\n\
                \x20                    Page Down,\n\
                \x20                    Numpad";
-    game::add_dialog_box(world, DialogKind::MessageBox, String::from(msg), vec![], 36);
+    world.add_dialog_box(DialogKind::MessageBox, String::from(msg), vec![], 36);
 }

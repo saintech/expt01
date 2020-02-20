@@ -24,7 +24,7 @@ pub fn update(world: &mut game::World) {
 
 fn player_death(_id: u32, world: &mut game::World) {
     // the game ended!
-    game::add_log(world, "You died!", cfg::COLOR_DARK_RED);
+    world.add_log(cfg::COLOR_DARK_RED, "You died!");
     // for added effect, transform the player into a corpse!
     let (symbol, _, char, _) = world.get_character_mut(world.player.id).unwrap();
     symbol.glyph = '\u{A3}';
@@ -37,10 +37,9 @@ fn monster_death(monster_id: u32, world: &mut game::World) {
     let xp = world.get_character(monster_id).unwrap().2.xp;
     // transform it into a nasty corpse! it doesn't block, can't be
     // attacked and doesn't move
-    game::add_log(
-        world,
-        format!("{} is dead! You gain {} experience points.", name, xp),
+    world.add_log(
         cfg::COLOR_ORANGE,
+        format!("{} is dead! You gain {} experience points.", name, xp),
     );
     let (symbol, map_obj, ..) = world.get_character_mut(monster_id).unwrap();
     symbol.glyph = '\u{A3}';

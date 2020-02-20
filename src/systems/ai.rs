@@ -10,23 +10,22 @@ pub fn update(world: &mut game::World) {
     // let monsters take their turn
     if world.player_is_alive() && player_action_is_turn(world.player.action) {
         let ai_ids: Vec<_> = world
-            .entity_indexes
-            .keys()
-            .filter_map(|&id| world.get_character(id).and(Some(id)))
+            .character_iter()
+            .filter(|(.., ai)| ai.option.is_some())
+            .map(|(id, ..)| id)
             .collect();
         for id in ai_ids {
             let ai_container = world.get_character_mut(id).unwrap().3;
-            if let Some(ai) = ai_container.option.take() {
-                let new_ai = match ai {
-                    Ai::Basic => ai_basic(id, world),
-                    Ai::Confused {
-                        previous_ai,
-                        num_turns,
-                    } => ai_confused(id, world, previous_ai, num_turns),
-                };
-                let ai_container = world.get_character_mut(id).unwrap().3;
-                ai_container.option.replace(new_ai);
-            }
+            let ai = ai_container.option.take().unwrap();
+            let new_ai = match ai {
+                Ai::Basic => ai_basic(id, world),
+                Ai::Confused {
+                    previous_ai,
+                    num_turns,
+                } => ai_confused(id, world, previous_ai, num_turns),
+            };
+            let ai_container = world.get_character_mut(id).unwrap().3;
+            ai_container.option.replace(new_ai);
         }
     }
 }
@@ -97,10 +96,9 @@ fn ai_confused(
         }
     } else {
         // restore the previous AI (this one will be deleted)
-        game::add_log(
-            world,
-            format!("The {} is no longer confused!", monster_name),
+        world.add_log(
             cfg::COLOR_ORANGE,
+            format!("The {} is no longer confused!", monster_name),
         );
         *previous_ai
     }

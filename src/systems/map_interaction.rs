@@ -38,24 +38,19 @@ fn pick_item_up(object_id: u32, world: &mut game::World) {
         .filter(|&item| item.owner == world.player.id)
         .count();
     if inventory_len >= 35 {
-        game::add_log(
-            world,
-            format!("Your inventory is full, cannot pick up {}.", name),
+        world.add_log(
             cfg::COLOR_DARK_RED,
+            format!("Your inventory is full, cannot pick up {}.", name),
         );
     } else {
-        game::add_log(
-            world,
-            format!("You picked up a {}!", name),
-            cfg::COLOR_GREEN,
-        );
+        world.add_log(cfg::COLOR_GREEN, format!("You picked up a {}!", name));
         let player_id = world.player.id;
         let (_, map_obj, item, eqp) = world.get_item_mut(object_id).unwrap();
         item.owner = player_id;
         map_obj.hidden = true;
         // automatically equip, if the corresponding equipment slot is unused
         if let Some(&mut Equipment { slot, .. }) = eqp {
-            if game::get_equipped_in_slot(slot, world).is_none() {
+            if world.get_equipped_in_slot(slot).is_none() {
                 game::equip(object_id, world);
             }
         }
@@ -65,18 +60,16 @@ fn pick_item_up(object_id: u32, world: &mut game::World) {
 /// Advance to the next level
 fn next_level(world: &mut game::World) {
     clear_dungeon(world);
-    game::add_log(
-        world,
-        "You take a moment to rest, and recover your strength.",
+    world.add_log(
         cfg::COLOR_GREEN,
+        "You take a moment to rest, and recover your strength.",
     );
-    let heal_hp = game::max_hp(world.player.id, world) / 2;
-    game::heal(world.player.id, heal_hp, world);
-    game::add_log(
-        world,
+    let heal_hp = world.max_hp(world.player.id) / 2;
+    heal(world.player.id, heal_hp, world);
+    world.add_log(
+        cfg::COLOR_ORANGE,
         "After a rare moment of peace, you descend deeper into \
          the heart of the mine...",
-        cfg::COLOR_ORANGE,
     );
     world.player.dungeon_level += 1;
 }
@@ -195,4 +188,14 @@ fn clear_dungeon(world: &mut game::World) {
         );
     }
     *world = temp_world;
+}
+
+/// heal by the given amount, without going over the maximum
+fn heal(id: u32, amount: i32, world: &mut game::World) {
+    let max_hp = world.max_hp(id);
+    let character = world.get_character_mut(id).unwrap().2;
+    character.hp += amount;
+    if character.hp > max_hp {
+        character.hp = max_hp;
+    }
 }

@@ -27,13 +27,12 @@ pub fn update(world: &mut game::World) {
         let level_up_xp = cfg::LEVEL_UP_BASE + player.level * cfg::LEVEL_UP_FACTOR;
         player.level += 1;
         player.xp -= level_up_xp;
-        game::add_log(
-            world,
+        world.add_log(
+            cfg::COLOR_ORANGE,
             format!(
                 "Your battle skills grow stronger! You reached level {}!",
                 new_level,
             ),
-            cfg::COLOR_ORANGE,
         );
         let header = String::from("Level up! Choose a stat to raise:\n");
         let options = vec![
@@ -41,8 +40,7 @@ pub fn update(world: &mut game::World) {
             format!("Strength (+1 attack, from {})", base_power),
             format!("Agility (+1 defense, from {})", base_defense),
         ];
-        game::add_dialog_box(
-            world,
+        world.add_dialog_box(
             DialogKind::LevelUp,
             header,
             options,

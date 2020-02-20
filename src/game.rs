@@ -77,10 +77,12 @@ impl World {
         self.entity_indexes.insert(self.id_count, entity_indexes);
         self.id_count
     }
+
     pub fn player_is_alive(&self) -> bool {
         self.get_character(self.player.id)
             .map_or(false, |(.., char, _)| char.alive)
     }
+
     pub fn get_character(&self, id: u32) -> Option<(&Symbol, &MapObject, &Character, &AiOption)> {
         let indexes = self
             .entity_indexes
@@ -97,6 +99,7 @@ impl World {
             None
         }
     }
+
     pub fn get_character_mut(
         &mut self,
         id: u32,
@@ -116,6 +119,7 @@ impl World {
             None
         }
     }
+
     pub fn character_iter(
         &self,
     ) -> impl Iterator<Item = (u32, &Symbol, &MapObject, &Character, &AiOption)> {
@@ -124,10 +128,12 @@ impl World {
                 .map(|char| (id, char.0, char.1, char.2, char.3))
         })
     }
+
     pub fn check_fov(&self, id: u32) -> bool {
         let &Symbol { x, y, .. } = self.get_map_obj(id).unwrap().0;
         self.map[(y * cfg::MAP_WIDTH + x) as usize].in_fov
     }
+
     pub fn get_map_obj(
         &self,
         id: u32,
@@ -149,6 +155,7 @@ impl World {
             None
         }
     }
+
     pub fn map_obj_iter(
         &self,
     ) -> impl Iterator<Item = (u32, &Symbol, &MapObject, Option<&Character>, &MapCell)> {
@@ -157,6 +164,7 @@ impl World {
                 .map(|char| (id, char.0, char.1, char.2, char.3))
         })
     }
+
     pub fn get_item(
         &self,
         id: u32,
@@ -176,6 +184,7 @@ impl World {
             None
         }
     }
+
     pub fn get_item_mut(
         &mut self,
         id: u32,
@@ -201,6 +210,7 @@ impl World {
             None
         }
     }
+
     pub fn item_iter(
         &self,
     ) -> impl Iterator<Item = (u32, &Symbol, &MapObject, &OwnedItem, Option<&Equipment>)> {
@@ -209,60 +219,112 @@ impl World {
                 .map(|char| (id, char.0, char.1, char.2, char.3))
         })
     }
+
     pub fn player_char(&self) -> &Character {
         self.get_character(self.player.id)
             .expect("the player has not been created yet")
             .2
     }
+
     pub fn player_char_mut(&mut self) -> &mut Character {
         self.get_character_mut(self.player.id)
             .expect("the player has not been created yet")
             .2
     }
+
     pub fn player_sym(&self) -> &Symbol {
         self.get_character(self.player.id)
             .expect("the player has not been created yet")
             .0
     }
-}
 
-pub fn add_log(world: &mut World, message: impl Into<String>, color: colors::Color) {
-    world.create_entity(
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        Some(LogMessage(message.into(), color)),
-        None,
-    );
-}
+    pub fn add_log(&mut self, color: colors::Color, message: impl Into<String>) {
+        self.create_entity(
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(LogMessage(message.into(), color)),
+            None,
+        );
+    }
 
-pub fn add_dialog_box(
-    world: &mut World,
-    kind: DialogKind,
-    header: String,
-    options: Vec<String>,
-    width: i32,
-) {
-    world.create_entity(
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        Some(DialogBox {
-            kind,
-            header,
-            options,
-            width,
-        }),
-    );
+    pub fn add_dialog_box(
+        &mut self,
+        kind: DialogKind,
+        header: String,
+        options: Vec<String>,
+        width: i32,
+    ) {
+        self.create_entity(
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(DialogBox {
+                kind,
+                header,
+                options,
+                width,
+            }),
+        );
+    }
+
+    /// returns a list of equipped items
+    fn get_all_equipped(&self, owner: u32) -> impl Iterator<Item = &Equipment> {
+        self.item_iter().filter_map(move |(.., item, eqp)| {
+            eqp.filter(|eqp| (item.owner == owner) && eqp.equipped)
+        })
+    }
+
+    pub fn power(&self, id: u32) -> i32 {
+        let base_power = self
+            .get_character(id)
+            .map_or(0, |(.., ch, _)| ch.base_power);
+        let bonus: i32 = self.get_all_equipped(id).map(|eq| eq.power_bonus).sum();
+        base_power + bonus
+    }
+
+    pub fn defense(&self, id: u32) -> i32 {
+        let base_defense = self
+            .get_character(id)
+            .map_or(0, |(.., ch, _)| ch.base_defense);
+        let bonus: i32 = self.get_all_equipped(id).map(|eq| eq.defense_bonus).sum();
+        base_defense + bonus
+    }
+
+    pub fn max_hp(&self, id: u32) -> i32 {
+        let base_max_hp = self
+            .get_character(id)
+            .map_or(0, |(.., ch, _)| ch.base_max_hp);
+        let bonus: i32 = self.get_all_equipped(id).map(|eq| eq.max_hp_bonus).sum();
+        base_max_hp + bonus
+    }
+
+    pub fn get_equipped_in_slot(&self, slot: Slot) -> Option<u32> {
+        self.item_iter().find_map(|(id, .., eqp)| {
+            eqp.filter(|eqp| eqp.equipped && (eqp.slot == slot))
+                .and(Some(id))
+        })
+    }
+
+    fn is_blocked(&self, x: i32, y: i32) -> bool {
+        let index_in_map = (y * cfg::MAP_WIDTH + x) as usize;
+        // first test the map tile
+        if self.map[index_in_map].block {
+            return true;
+        }
+        // now check for any blocking objects
+        self.map_obj_iter()
+            .any(|(_, sym, map_obj, ..)| map_obj.block && ((sym.x, sym.y) == (x, y)))
+    }
 }
 
 /// return the distance to another object
@@ -288,141 +350,58 @@ pub fn take_damage(target: &mut Character, damage: i32) -> Option<i32> {
 }
 
 pub fn attack_by(attacker_id: u32, target_id: u32, world: &mut World) {
-    let attacker_object =
-        &world.map_objects[world.entity_indexes[&attacker_id].map_object.unwrap()];
-    let attacker_name = attacker_object.name.clone();
-    let target_object = &world.map_objects[world.entity_indexes[&target_id].map_object.unwrap()];
-    let target_name = target_object.name.clone();
+    let attacker_name = world.get_character(attacker_id).unwrap().1.name.clone();
+    let target_name = world.get_character(target_id).unwrap().1.name.clone();
     // a simple formula for attack damage
-    let damage = power(attacker_id, world) - defense(target_id, world);
+    let damage = world.power(attacker_id) - world.defense(target_id);
     if damage > 0 {
-        add_log(
-            world,
+        world.add_log(
+            cfg::COLOR_LIGHTEST_GREY,
             format!(
                 "{} attacks {} for {} hit points.",
                 attacker_name, target_name, damage
             ),
-            cfg::COLOR_LIGHTEST_GREY,
         );
-        let attacker_index = world.entity_indexes[&attacker_id].character.unwrap();
-        let target_index = world.entity_indexes[&target_id].character.unwrap();
-        if let Some(xp) = take_damage(&mut world.characters[target_index], damage) {
+        let target_char = world.get_character_mut(target_id).unwrap().2;
+        if let Some(xp) = take_damage(target_char, damage) {
             // yield experience to the player
-            world.characters[attacker_index].xp += xp;
+            world.get_character_mut(attacker_id).unwrap().2.xp += xp;
         }
     } else {
-        add_log(
-            world,
+        world.add_log(
+            cfg::COLOR_LIGHTEST_GREY,
             format!(
                 "{} attacks {} but it has no effect!",
                 attacker_name, target_name
             ),
-            cfg::COLOR_LIGHTEST_GREY,
         );
-    }
-}
-
-/// heal by the given amount, without going over the maximum
-pub fn heal(id: u32, amount: i32, world: &mut World) {
-    let max_hp = max_hp(id, world);
-    let player_indexes = &world.entity_indexes[&id];
-    let character = &mut world.characters[player_indexes.character.unwrap()];
-    character.hp += amount;
-    if character.hp > max_hp {
-        character.hp = max_hp;
     }
 }
 
 /// Equip object and show a message about it
 pub fn equip(id: u32, world: &mut World) {
-    let indexes = &world.entity_indexes[&id];
-    let name = world.map_objects[indexes.map_object.unwrap()].name.clone();
-    if let Some(index) = indexes.equipment {
-        if !world.equipments[index].equipped {
-            world.equipments[index].equipped = true;
-            add_log(
-                world,
-                format!("Equipped {} on {}.", name, world.equipments[index].slot),
-                cfg::COLOR_GREEN,
-            );
+    let name = world.get_item(id).unwrap().1.name.clone();
+    let maybe_eqp = world.get_item_mut(id).unwrap().3;
+    if let Some(equipment) = maybe_eqp {
+        if !equipment.equipped {
+            equipment.equipped = true;
+            let slot = equipment.slot;
+            world.add_log(cfg::COLOR_GREEN, format!("Equipped {} on {}.", name, slot));
         }
     } else {
-        add_log(
-            world,
-            format!("Can't equip {} because it's not an Equipment.", name),
+        world.add_log(
             cfg::COLOR_ORANGE,
+            format!("Can't equip {} because it's not an Equipment.", name),
         );
     }
 }
 
-/// returns a list of equipped items
-fn get_all_equipped(owner: u32, world: &World) -> impl Iterator<Item = &Equipment> {
-    world.entity_indexes.values().filter_map(move |indexes| {
-        indexes
-            .item
-            .filter(|&it| world.items[it].owner == owner)
-            .and(indexes.equipment)
-            .filter(|&eq| world.equipments[eq].equipped)
-            .map(|eq| &world.equipments[eq])
-    })
-}
-
-pub fn power(id: u32, world: &World) -> i32 {
-    let base_power = world.entity_indexes[&id]
-        .character
-        .map_or(0, |ch| world.characters[ch].base_power);
-    let bonus: i32 = get_all_equipped(id, world).map(|eq| eq.power_bonus).sum();
-    base_power + bonus
-}
-
-pub fn defense(id: u32, world: &World) -> i32 {
-    let base_defense = world.entity_indexes[&id]
-        .character
-        .map_or(0, |ch| world.characters[ch].base_defense);
-    let bonus: i32 = get_all_equipped(id, world).map(|eq| eq.defense_bonus).sum();
-    base_defense + bonus
-}
-
-pub fn max_hp(id: u32, world: &World) -> i32 {
-    let base_max_hp = world.entity_indexes[&id]
-        .character
-        .map_or(0, |ch| world.characters[ch].base_max_hp);
-    let bonus: i32 = get_all_equipped(id, world).map(|eq| eq.max_hp_bonus).sum();
-    base_max_hp + bonus
-}
-
 /// move by the given amount, if the destination is not blocked
 pub fn move_by(id: u32, dx: i32, dy: i32, world: &mut World) {
-    let indexes = &world.entity_indexes[&id];
-    let symbol = &world.symbols[indexes.symbol.unwrap()];
-    let &Symbol { x, y, .. } = symbol;
-    if !is_blocked(x + dx, y + dy, world) {
-        world.symbols[indexes.symbol.unwrap()].x = x + dx;
-        world.symbols[indexes.symbol.unwrap()].y = y + dy;
+    let symbol = world.get_character(id).unwrap().0;
+    let (x, y) = (symbol.x, symbol.y);
+    if !world.is_blocked(x + dx, y + dy) {
+        world.get_character_mut(id).unwrap().0.x = x + dx;
+        world.get_character_mut(id).unwrap().0.y = y + dy;
     }
-}
-
-pub fn get_equipped_in_slot(slot: Slot, world: &mut World) -> Option<u32> {
-    world.entity_indexes.iter().find_map(|(&id, indexes)| {
-        indexes
-            .equipment
-            .filter(|&eq| world.equipments[eq].equipped && world.equipments[eq].slot == slot)
-            .and(Some(id))
-    })
-}
-
-fn is_blocked(x: i32, y: i32, world: &World) -> bool {
-    let index_in_map = (y * cfg::MAP_WIDTH + x) as usize;
-    // first test the map tile
-    if world.map[index_in_map].block {
-        return true;
-    }
-    // now check for any blocking objects
-    world.entity_indexes.values().any(|indexes| {
-        if let (Some(sy), Some(mo)) = (indexes.symbol, indexes.map_object) {
-            return world.map_objects[mo].block
-                && (world.symbols[sy].x, world.symbols[sy].y) == (x, y);
-        };
-        false
-    })
 }

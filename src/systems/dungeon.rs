@@ -552,12 +552,11 @@ fn spawn_player(world: &mut game::World) {
     };
     map_obj.name = String::from("Pipe");
     eqp.unwrap().power_bonus = 2;
-    game::add_log(
-        world,
+    world.add_log(
+        cfg::COLOR_ORANGE,
         String::from(
             "Welcome stranger! Prepare to perish in the Abandoned Mines. Press F1 for help.\n",
         ),
-        cfg::COLOR_ORANGE,
     );
     if world.player.dungeon_level == 0 {
         world.player.dungeon_level = 1;
