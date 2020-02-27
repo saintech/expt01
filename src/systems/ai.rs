@@ -1,6 +1,7 @@
 use crate::cfg;
 use crate::cmtp::{Ai, PlayerAction, PlayerState, Symbol};
-use crate::game;
+use crate::engine;
+use crate::engine::game;
 use rand::Rng as _;
 
 pub fn update(world: &mut game::World) {
@@ -50,12 +51,12 @@ fn ai_basic(monster_id: u32, world: &mut game::World) -> Ai {
         world.get_character_mut(monster_id).unwrap().2.looking_right = true;
     }
     if world.check_fov(monster_id) {
-        if game::distance_to(monster_x, monster_y, player_x, player_y) >= 2.0 {
+        if game::World::distance_to(monster_x, monster_y, player_x, player_y) >= 2.0 {
             // move towards player if far away
             move_towards(monster_id, player_x, player_y, world);
         } else if world.player_char().hp > 0 {
             // close enough, attack! (if the player is still alive.)
-            game::attack_by(monster_id, world.player.id, world);
+            engine::attack_by(monster_id, world.player.id, world);
         }
     }
     Ai::Basic
@@ -71,7 +72,7 @@ fn move_towards(id: u32, target_x: i32, target_y: i32, world: &mut game::World) 
     // convert to integer so the movement is restricted to the map grid
     let dx = (dx as f32 / distance).round() as i32;
     let dy = (dy as f32 / distance).round() as i32;
-    game::move_by(id, dx, dy, world);
+    engine::move_by(id, dx, dy, world);
 }
 
 fn ai_confused(
@@ -84,7 +85,7 @@ fn ai_confused(
     if num_turns >= 0 {
         // still confused ...
         // move in a random direction, and decrease the number of turns confused
-        game::move_by(
+        engine::move_by(
             monster_id,
             rand::thread_rng().gen_range(-1, 2),
             rand::thread_rng().gen_range(-1, 2),

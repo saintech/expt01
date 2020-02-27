@@ -1,6 +1,6 @@
 use crate::cfg;
 use crate::cmtp::{DialogBox, LogMessage, MapCell, Symbol};
-use crate::game;
+use crate::engine::game;
 use tcod::{colors, console, Console as _};
 
 pub fn update(world: &mut game::World, tcod: &mut game::Tcod) {

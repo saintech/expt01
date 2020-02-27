@@ -1,5 +1,5 @@
 use crate::cfg;
-use crate::game;
+use crate::engine::game;
 use tcod::map;
 
 pub fn update(world: &mut game::World, fov: &mut map::Map) {

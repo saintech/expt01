@@ -1,6 +1,6 @@
 use crate::cfg;
 use crate::cmtp::{Character, DialogBox, DialogKind, PlayerAction, PlayerState};
-use crate::game;
+use crate::engine::game;
 
 fn get_lvl_up_player(world: &mut game::World) -> Option<&mut Character> {
     if (world.player.state == PlayerState::MakingTurn) && world.player_is_alive() {

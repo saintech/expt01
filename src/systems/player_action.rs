@@ -1,5 +1,6 @@
 use crate::cmtp::{PlayerAction, PlayerState};
-use crate::game;
+use crate::engine;
+use crate::engine::game;
 
 pub fn update(world: &mut game::World) {
     if (world.player.state != PlayerState::MakingTurn) || !world.player_is_alive() {
@@ -32,10 +33,10 @@ pub fn update(world: &mut game::World) {
     // attack if target found, move otherwise
     match target_id {
         Some(target_id) => {
-            game::attack_by(world.player.id, target_id, world);
+            engine::attack_by(world.player.id, target_id, world);
         }
         None => {
-            game::move_by(world.player.id, dx, dy, world);
+            engine::move_by(world.player.id, dx, dy, world);
         }
     }
 }

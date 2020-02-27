@@ -1,5 +1,5 @@
 use crate::cmtp::PlayerAction;
-use crate::game;
+use crate::engine::game;
 
 pub fn update(world: &mut game::World) {
     if let PlayerAction::LookAt(lx, ly) = world.player.action {

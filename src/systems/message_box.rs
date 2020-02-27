@@ -1,5 +1,5 @@
 use crate::cmtp::{DialogBox, DialogKind, PlayerAction, PlayerState};
-use crate::game;
+use crate::engine::game;
 
 fn is_message_box(dialog_box: &&DialogBox) -> bool {
     dialog_box.kind == DialogKind::MessageBox

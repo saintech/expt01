@@ -1,6 +1,7 @@
 use crate::cfg;
 use crate::cmtp::{Ai, DialogBox, DialogKind, Item, PlayerAction, PlayerState};
-use crate::game;
+use crate::engine;
+use crate::engine::game;
 use std::f32;
 
 fn is_opening_inventory(world: &game::World) -> bool {
@@ -164,7 +165,7 @@ fn shoot_slingshot(_inventory_id: u32, world: &mut game::World, _by_targeting: b
     let monster_id = closest_monster(cfg::SLINGSHOT_RANGE, world);
     if let Some(monster_id) = monster_id {
         let monster = world.get_character_mut(monster_id).unwrap().2;
-        if let Some(xp) = game::take_damage(monster, cfg::SLINGSHOT_DAMAGE) {
+        if let Some(xp) = engine::take_damage(monster, cfg::SLINGSHOT_DAMAGE) {
             world.player_char_mut().xp += xp;
         }
         let monster_name = world.get_character(monster_id).unwrap().1.name.clone();
@@ -195,7 +196,7 @@ fn closest_monster(max_range: i32, world: &game::World) -> Option<u32> {
     for (id, enemy_x, enemy_y) in enemies {
         let player_symbol = world.player_sym();
         // calculate distance between this object and the player
-        let dist = game::distance_to(player_symbol.x, player_symbol.y, enemy_x, enemy_y);
+        let dist = game::World::distance_to(player_symbol.x, player_symbol.y, enemy_x, enemy_y);
         if dist < closest_dist {
             // it's closer, so remember it
             closest_enemy = Some(id);
@@ -276,13 +277,13 @@ fn throw_blasting_cartridge(
         let targets: Vec<_> = world
             .character_iter()
             .filter(|(_, sym, ..)| {
-                game::distance_to(sym.x, sym.y, x, y) <= cfg::BLASTING_RADIUS as f32
+                game::World::distance_to(sym.x, sym.y, x, y) <= cfg::BLASTING_RADIUS as f32
             })
             .map(|(id, ..)| id)
             .collect();
         for target_id in targets {
             let target = world.get_character_mut(target_id).unwrap().2;
-            if let Some(xp) = game::take_damage(target, cfg::BLASTING_DAMAGE) {
+            if let Some(xp) = engine::take_damage(target, cfg::BLASTING_DAMAGE) {
                 if target_id != world.player.id {
                     // Don't reward the player for burning themself!
                     xp_to_gain += xp;
@@ -312,7 +313,7 @@ fn toggle_equipment(inventory_id: u32, world: &mut game::World, _by_targeting: b
         if let Some(current) = world.get_equipped_in_slot(equipment.slot) {
             dequip(current, world);
         }
-        game::equip(inventory_id, world);
+        engine::equip(inventory_id, world);
     }
     UseResult::UsedAndKept
 }
@@ -356,7 +357,7 @@ fn target_tile(world: &game::World, max_range: f32, (x, y): (i32, i32)) -> bool 
     let (player_x, player_y) = (player_symbol.x, player_symbol.y);
     let target_index_in_map = (y * cfg::MAP_WIDTH + x) as usize;
     world.map[target_index_in_map].in_fov
-        && (game::distance_to(player_x, player_y, x, y) <= max_range)
+        && (game::World::distance_to(player_x, player_y, x, y) <= max_range)
 }
 
 fn drop_item(inventory_id: u32, world: &mut game::World) {

@@ -1,5 +1,5 @@
 use crate::cmtp::{DialogBox, DialogKind, PlayerAction, PlayerState};
-use crate::game;
+use crate::engine::game;
 use std::{error::Error, fs, io::Read as _};
 
 fn is_main_menu(dialog_box: &&DialogBox) -> bool {

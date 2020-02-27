@@ -1,21 +1,9 @@
+use super::entity;
 use crate::cfg;
 use crate::cmtp::*;
 use serde::{Deserialize, Serialize};
 use std::collections::btree_map::BTreeMap;
 use tcod::{colors, console};
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct EntityIndexes {
-    pub symbol: Option<usize>,
-    pub map_cell: Option<usize>,
-    pub map_object: Option<usize>,
-    pub character: Option<usize>,
-    pub ai: Option<usize>,
-    pub item: Option<usize>,
-    pub equipment: Option<usize>,
-    pub log_message: Option<usize>,
-    pub dialog: Option<usize>,
-}
 
 pub struct Tcod {
     pub root: console::Root,
@@ -26,7 +14,7 @@ pub struct Tcod {
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct World {
     pub id_count: u32,
-    pub entity_indexes: BTreeMap<u32, EntityIndexes>,
+    pub entity_indexes: BTreeMap<u32, entity::Indexes>,
     pub player: Player,
     pub must_be_destroyed: bool,
     pub symbols: Vec<Symbol>,
@@ -41,43 +29,6 @@ pub struct World {
 }
 
 impl World {
-    pub fn create_entity(
-        &mut self,
-        symbol: Option<Symbol>,
-        map_cell: Option<MapCell>,
-        map_object: Option<MapObject>,
-        character: Option<Character>,
-        ai: Option<AiOption>,
-        item: Option<OwnedItem>,
-        equipment: Option<Equipment>,
-        log_message: Option<LogMessage>,
-        dialog: Option<DialogBox>,
-    ) -> u32 {
-        let entity_indexes = EntityIndexes {
-            symbol: symbol.as_ref().map(|_| self.symbols.len()),
-            map_cell: map_cell.as_ref().map(|_| self.map.len()),
-            map_object: map_object.as_ref().map(|_| self.map_objects.len()),
-            character: character.as_ref().map(|_| self.characters.len()),
-            ai: ai.as_ref().map(|_| self.ais.len()),
-            item: item.as_ref().map(|_| self.items.len()),
-            equipment: equipment.as_ref().map(|_| self.equipments.len()),
-            log_message: log_message.as_ref().map(|_| self.log.len()),
-            dialog: dialog.as_ref().map(|_| self.dialogs.len()),
-        };
-        symbol.map(|c| self.symbols.push(c));
-        map_cell.map(|c| self.map.push(c));
-        map_object.map(|c| self.map_objects.push(c));
-        character.map(|c| self.characters.push(c));
-        ai.map(|c| self.ais.push(c));
-        item.map(|c| self.items.push(c));
-        equipment.map(|c| self.equipments.push(c));
-        log_message.map(|c| self.log.push(c));
-        dialog.map(|c| self.dialogs.push(c));
-        self.id_count += 1;
-        self.entity_indexes.insert(self.id_count, entity_indexes);
-        self.id_count
-    }
-
     pub fn player_is_alive(&self) -> bool {
         self.get_character(self.player.id)
             .map_or(false, |(.., char, _)| char.alive)
@@ -239,17 +190,9 @@ impl World {
     }
 
     pub fn add_log(&mut self, color: colors::Color, message: impl Into<String>) {
-        self.create_entity(
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(LogMessage(message.into(), color)),
-            None,
-        );
+        new_entity()
+            .add_log_message(LogMessage(message.into(), color))
+            .create(self);
     }
 
     pub fn add_dialog_box(
@@ -259,22 +202,14 @@ impl World {
         options: Vec<String>,
         width: i32,
     ) {
-        self.create_entity(
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(DialogBox {
+        new_entity()
+            .add_dialog(DialogBox {
                 kind,
                 header,
                 options,
                 width,
-            }),
-        );
+            })
+            .create(self);
     }
 
     /// returns a list of equipped items
@@ -315,7 +250,7 @@ impl World {
         })
     }
 
-    fn is_blocked(&self, x: i32, y: i32) -> bool {
+    pub fn is_blocked(&self, x: i32, y: i32) -> bool {
         let index_in_map = (y * cfg::MAP_WIDTH + x) as usize;
         // first test the map tile
         if self.map[index_in_map].block {
@@ -325,83 +260,15 @@ impl World {
         self.map_obj_iter()
             .any(|(_, sym, map_obj, ..)| map_obj.block && ((sym.x, sym.y) == (x, y)))
     }
-}
 
-/// return the distance to another object
-pub fn distance_to(from_x: i32, from_y: i32, to_x: i32, to_y: i32) -> f32 {
-    let dx = to_x - from_x;
-    let dy = to_y - from_y;
-    ((dx.pow(2) + dy.pow(2)) as f32).sqrt()
-}
-
-pub fn take_damage(target: &mut Character, damage: i32) -> Option<i32> {
-    // apply damage if possible
-    if damage > 0 {
-        target.hp -= damage;
-    }
-    // check for death, call the death function
-    if target.hp <= 0 {
-        target.alive = false;
-        //fighter.on_death.callback(self, game);
-        Some(target.xp)
-    } else {
-        None
+    /// return the distance to another object
+    pub fn distance_to(from_x: i32, from_y: i32, to_x: i32, to_y: i32) -> f32 {
+        let dx = to_x - from_x;
+        let dy = to_y - from_y;
+        ((dx.pow(2) + dy.pow(2)) as f32).sqrt()
     }
 }
 
-pub fn attack_by(attacker_id: u32, target_id: u32, world: &mut World) {
-    let attacker_name = world.get_character(attacker_id).unwrap().1.name.clone();
-    let target_name = world.get_character(target_id).unwrap().1.name.clone();
-    // a simple formula for attack damage
-    let damage = world.power(attacker_id) - world.defense(target_id);
-    if damage > 0 {
-        world.add_log(
-            cfg::COLOR_LIGHTEST_GREY,
-            format!(
-                "{} attacks {} for {} hit points.",
-                attacker_name, target_name, damage
-            ),
-        );
-        let target_char = world.get_character_mut(target_id).unwrap().2;
-        if let Some(xp) = take_damage(target_char, damage) {
-            // yield experience to the player
-            world.get_character_mut(attacker_id).unwrap().2.xp += xp;
-        }
-    } else {
-        world.add_log(
-            cfg::COLOR_LIGHTEST_GREY,
-            format!(
-                "{} attacks {} but it has no effect!",
-                attacker_name, target_name
-            ),
-        );
-    }
-}
-
-/// Equip object and show a message about it
-pub fn equip(id: u32, world: &mut World) {
-    let name = world.get_item(id).unwrap().1.name.clone();
-    let maybe_eqp = world.get_item_mut(id).unwrap().3;
-    if let Some(equipment) = maybe_eqp {
-        if !equipment.equipped {
-            equipment.equipped = true;
-            let slot = equipment.slot;
-            world.add_log(cfg::COLOR_GREEN, format!("Equipped {} on {}.", name, slot));
-        }
-    } else {
-        world.add_log(
-            cfg::COLOR_ORANGE,
-            format!("Can't equip {} because it's not an Equipment.", name),
-        );
-    }
-}
-
-/// move by the given amount, if the destination is not blocked
-pub fn move_by(id: u32, dx: i32, dy: i32, world: &mut World) {
-    let symbol = world.get_character(id).unwrap().0;
-    let (x, y) = (symbol.x, symbol.y);
-    if !world.is_blocked(x + dx, y + dy) {
-        world.get_character_mut(id).unwrap().0.x = x + dx;
-        world.get_character_mut(id).unwrap().0.y = y + dy;
-    }
+pub fn new_entity() -> entity::Builder {
+    entity::Builder::new()
 }

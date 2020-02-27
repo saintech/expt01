@@ -1,11 +1,12 @@
-use tcod::console;
-
 mod cfg;
 mod cmtp;
-mod game;
+mod engine;
 mod systems;
 
 fn main() {
+    use engine::game;
+    use tcod::console;
+
     tcod::system::set_fps(cfg::LIMIT_FPS);
     let spritesheet = if tcod::system::get_current_resolution() >= (1920, 1080) {
         "spritesheet-14px-2x.png"

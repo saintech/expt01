@@ -3,7 +3,7 @@ use crate::cmtp::{
     Ai, AiOption, Character, DeathCallback, Equipment, Item, MapCell, MapObject, OwnedItem,
     PlayerAction, PlayerState, Slot, Symbol,
 };
-use crate::game;
+use crate::engine::game;
 use rand::distributions::{Distribution as _, WeightedIndex};
 use rand::Rng as _;
 use std::{cmp, fs, io::Write as _};
@@ -116,22 +116,14 @@ fn make_map(world: &mut game::World, level: u32) {
 
 fn fill_walls(world: &mut game::World) {
     for _ in 0..cfg::MAP_WIDTH * cfg::MAP_HEIGHT {
-        world.create_entity(
-            None,
-            Some(MapCell {
+        game::new_entity()
+            .add_map_cell(MapCell {
                 block: true,
                 explored: false,
                 block_sight: true,
                 in_fov: false,
-            }),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        );
+            })
+            .create(world);
     }
 }
 
@@ -159,20 +151,13 @@ fn place_hints(world: &mut game::World, rooms: &mut Vec<Rect>) {
         (x + 2, y + 3, '\u{1B}'),
     ];
     hints.iter().for_each(|&(x, y, glyph)| {
-        world.create_entity(
-            Some(Symbol { x, y, glyph, color }),
-            None,
-            Some(MapObject {
+        game::new_entity()
+            .add_symbol(Symbol { x, y, glyph, color })
+            .add_map_object(MapObject {
                 name: name.to_string(),
                 ..map_object
-            }),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        );
+            })
+            .create(world);
     });
     let player_symbol = world.get_character_mut(world.player.id).unwrap().0;
     player_symbol.x = x + 3;
@@ -371,17 +356,10 @@ fn spawn_stairs(world: &mut game::World, x: i32, y: i32) {
         always_visible: true,
         hidden: false,
     };
-    world.create_entity(
-        Some(Symbol { x, y, glyph, color }),
-        None,
-        Some(map_object),
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-    );
+    game::new_entity()
+        .add_symbol(Symbol { x, y, glyph, color })
+        .add_map_object(map_object)
+        .create(world);
 }
 
 /// Returns a value that depends on level. the table specifies what
@@ -421,22 +399,17 @@ fn spawn_monster(
     let block = true;
     let always_visible = false;
     let hidden = false;
-    world.create_entity(
-        Some(symbol),
-        None,
-        Some(MapObject {
+    game::new_entity()
+        .add_symbol(symbol)
+        .add_map_object(MapObject {
             name,
             block,
             always_visible,
             hidden,
-        }),
-        Some(character),
-        Some(AiOption { option: Some(ai) }),
-        None,
-        None,
-        None,
-        None,
-    );
+        })
+        .add_character(character)
+        .add_ai(AiOption { option: Some(ai) })
+        .create(world);
 }
 
 fn spawn_item(world: &mut game::World, item: Item, owner: u32, x: i32, y: i32) -> u32 {
@@ -479,22 +452,17 @@ fn spawn_item(world: &mut game::World, item: Item, owner: u32, x: i32, y: i32) -
     let block = false;
     let always_visible = false;
     let hidden = false;
-    world.create_entity(
-        Some(Symbol { x, y, glyph, color }),
-        None,
-        Some(MapObject {
+    game::new_entity()
+        .add_symbol(Symbol { x, y, glyph, color })
+        .add_map_object(MapObject {
             name,
             block,
             always_visible,
             hidden,
-        }),
-        None,
-        None,
-        Some(OwnedItem { item, owner }),
-        equipment,
-        None,
-        None,
-    )
+        })
+        .add_item(OwnedItem { item, owner })
+        .add_equipment(equipment)
+        .create(world)
 }
 
 fn spawn_player(world: &mut game::World) {
@@ -515,16 +483,15 @@ fn spawn_player(world: &mut game::World) {
     let xp = 0;
     let on_death = DeathCallback::Player;
     let looking_right = false;
-    world.player.id = world.create_entity(
-        Some(Symbol { x, y, glyph, color }),
-        None,
-        Some(MapObject {
+    world.player.id = game::new_entity()
+        .add_symbol(Symbol { x, y, glyph, color })
+        .add_map_object(MapObject {
             name,
             block,
             always_visible,
             hidden,
-        }),
-        Some(Character {
+        })
+        .add_character(Character {
             alive,
             level,
             hp,
@@ -534,13 +501,9 @@ fn spawn_player(world: &mut game::World) {
             xp,
             on_death,
             looking_right,
-        }),
-        Some(AiOption { option: None }),
-        None,
-        None,
-        None,
-        None,
-    );
+        })
+        .add_ai(AiOption { option: None })
+        .create(world);
     // initial equipment: Pipe
     let pipe_id = spawn_item(world, Item::Melee, world.player.id, 0, 0);
     let (sym, map_obj, _, eqp) = world.get_item_mut(pipe_id).unwrap();

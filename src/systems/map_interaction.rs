@@ -3,7 +3,8 @@ use crate::cmtp::{
     AiOption, Character, Equipment, LogMessage, MapObject, OwnedItem, Player, PlayerAction,
     PlayerState, Symbol,
 };
-use crate::game;
+use crate::engine;
+use crate::engine::game;
 
 pub fn update(world: &mut game::World) {
     if world.player.state != PlayerState::MakingTurn {
@@ -51,7 +52,7 @@ fn pick_item_up(object_id: u32, world: &mut game::World) {
         // automatically equip, if the corresponding equipment slot is unused
         if let Some(&mut Equipment { slot, .. }) = eqp {
             if world.get_equipped_in_slot(slot).is_none() {
-                game::equip(object_id, world);
+                engine::equip(object_id, world);
             }
         }
     }
@@ -113,17 +114,12 @@ fn clear_dungeon(world: &mut game::World) {
             on_death: world.characters[indexes.character.unwrap()].on_death,
             looking_right: world.characters[indexes.character.unwrap()].looking_right,
         };
-        temp_world.player.id = temp_world.create_entity(
-            Some(symbol),
-            None,
-            Some(map_object),
-            Some(character),
-            Some(AiOption { option: None }),
-            None,
-            None,
-            None,
-            None,
-        );
+        temp_world.player.id = game::new_entity()
+            .add_symbol(symbol)
+            .add_map_object(map_object)
+            .add_character(character)
+            .add_ai(AiOption { option: None })
+            .create(&mut temp_world);
     }
     // copy inventory
     let inventory = world
@@ -153,17 +149,12 @@ fn clear_dungeon(world: &mut game::World) {
             defense_bonus: equipment.defense_bonus,
             power_bonus: equipment.power_bonus,
         });
-        temp_world.create_entity(
-            Some(symbol),
-            None,
-            Some(map_object),
-            None,
-            Some(AiOption { option: None }),
-            Some(item),
-            equipment,
-            None,
-            None,
-        );
+        game::new_entity()
+            .add_symbol(symbol)
+            .add_map_object(map_object)
+            .add_item(item)
+            .add_equipment(equipment)
+            .create(&mut temp_world);
     }
     // copy logs
     let logs = world
@@ -175,17 +166,9 @@ fn clear_dungeon(world: &mut game::World) {
             world.log[indexes.log_message.unwrap()].0.clone(),
             world.log[indexes.log_message.unwrap()].1,
         );
-        temp_world.create_entity(
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(log_message),
-            None,
-        );
+        game::new_entity()
+            .add_log_message(log_message)
+            .create(&mut temp_world);
     }
     *world = temp_world;
 }

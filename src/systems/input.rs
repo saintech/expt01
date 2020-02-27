@@ -1,5 +1,5 @@
 use crate::cmtp::{PlayerAction, PlayerState};
-use crate::game;
+use crate::engine::game;
 use tcod::input;
 
 pub fn update(world: &mut game::World) {

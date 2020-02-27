@@ -1,5 +1,5 @@
 use crate::cmtp::{DialogKind, PlayerAction, PlayerState};
-use crate::game;
+use crate::engine::game;
 
 pub fn update(world: &mut game::World) {
     let should_open_help = (world.player.state == PlayerState::MakingTurn)
