@@ -9,7 +9,6 @@ pub mod inventory;
 pub mod main_menu;
 pub mod map_interaction;
 pub mod message_box;
-pub mod mouse_look;
 pub mod player_action;
 pub mod render;
 pub mod stats_menu;

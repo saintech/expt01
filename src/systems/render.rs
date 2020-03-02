@@ -1,11 +1,11 @@
 use crate::cfg;
-use crate::cmtp::{DialogBox, LogMessage, MapCell, Symbol};
+use crate::cmtp::{DialogBox, LogMessage, Symbol};
 use crate::engine::game;
 use tcod::{colors, console, Console as _};
 
 pub fn update(world: &mut game::World, tcod: &mut game::Tcod) {
     if !world.map.is_empty() {
-        render_map(&world.map, &mut tcod.con);
+        render_map(world, &mut tcod.con);
         render_map_objects(world, &mut tcod.con);
         // blit the contents of "con" to the root console
         console::blit(
@@ -37,7 +37,8 @@ pub fn update(world: &mut game::World, tcod: &mut game::Tcod) {
     tcod.root.flush();
 }
 
-fn render_map(map: &Vec<MapCell>, con: &mut impl console::Console) {
+fn render_map(world: &game::World, con: &mut impl console::Console) {
+    let map = &world.map;
     con.set_default_background(cfg::COLOR_DARK_GROUND_BG);
     con.clear();
     for i in 0..map.len() {
@@ -48,6 +49,11 @@ fn render_map(map: &Vec<MapCell>, con: &mut impl console::Console) {
             && wall
             && !map[((y + 1) * cfg::MAP_WIDTH + x) as usize].block_sight;
         let ground_sprite = (cfg::GROUND_BITMAP & 1usize.rotate_left(i as u32)) != 0;
+        let ground_bg = if world.player.looking_at == Some((x, y)) {
+            cfg::COLOR_LIGHT_GROUND_BG_HIGHLIGHTED
+        } else {
+            cfg::COLOR_LIGHT_GROUND_BG
+        };
         let (fg, bg, glyph) = match (visible, wall, wall_bottom, ground_sprite) {
             // outside of field of view:
             (false, true, false, _) => (cfg::COLOR_DARK_WALL, cfg::COLOR_DARK_WALL_BG, '\u{A0}'),
@@ -59,12 +65,8 @@ fn render_map(map: &Vec<MapCell>, con: &mut impl console::Console) {
             // inside fov:
             (true, true, false, _) => (cfg::COLOR_LIGHT_WALL, cfg::COLOR_LIGHT_WALL_BG, '\u{A0}'),
             (true, true, true, _) => (cfg::COLOR_LIGHT_WALL, cfg::COLOR_LIGHT_WALL_BG, '\u{A1}'),
-            (true, false, _, false) => (cfg::COLOR_LIGHT_GROUND, cfg::COLOR_LIGHT_GROUND_BG, ' '),
-            (true, false, _, true) => (
-                cfg::COLOR_LIGHT_GROUND,
-                cfg::COLOR_LIGHT_GROUND_BG,
-                '\u{A2}',
-            ),
+            (true, false, _, false) => (cfg::COLOR_LIGHT_GROUND, ground_bg, ' '),
+            (true, false, _, true) => (cfg::COLOR_LIGHT_GROUND, ground_bg, '\u{A2}'),
         };
         if map[i].explored {
             // show explored tiles only (any visible tile is explored already)
@@ -145,7 +147,7 @@ fn render_panel(world: &game::World, con: &mut impl console::Console) {
         hp,
         max_hp,
         cfg::COLOR_DARK_RED,
-        cfg::COLOR_DARKER_SEPIA,
+        cfg::COLOR_DARKEST_SEPIA,
     );
     con.print_ex(
         1,
@@ -199,18 +201,18 @@ fn render_bar(
 
 /// return a string with the names of all objects under the mouse
 fn get_names_under_mouse(world: &game::World) -> String {
-    let mut names: Vec<_> = world
-        .player
-        .look_at
-        .iter()
-        .flatten()
-        .filter_map(|id| world.entity_indexes.get(id))
-        .map(|indexes| world.map_objects[indexes.map_object.unwrap()].name.clone())
-        .collect();
-    let max_len = world.player.look_at.len();
+    let mut names = vec![];
+    if let Some((x, y)) = world.player.looking_at {
+        names = world
+            .map_obj_iter()
+            .filter(|(_, sym, ..)| (sym.x, sym.y) == (x, y))
+            .map(|(_, _, map_obj, ..)| map_obj.name.clone())
+            .collect();
+    }
+    let max_len = 4;
     match names.len() {
         0 => String::from("nothing out of the ordinary"),
-        l if l == max_len => {
+        l if l >= max_len => {
             names.truncate(max_len - 1);
             names.join(", ") + " and more..."
         }
@@ -245,7 +247,7 @@ fn render_dialogs(world: &game::World, destination_console: &mut impl console::C
         // create an off-screen console that represents the menu's window
         let mut window = console::Offscreen::new(*width, height);
         window.set_default_background(cfg::COLOR_DARK_SKY);
-        window.set_default_foreground(cfg::COLOR_DARKER_SEPIA);
+        window.set_default_foreground(cfg::COLOR_DARKEST_SEPIA);
         window.clear();
         // print the header, with auto-wrap
         window.print_rect(1, 1, width - 1, height, header);

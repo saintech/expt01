@@ -7,7 +7,7 @@ pub struct Player {
     pub dungeon_level: u32,
     pub state: PlayerState,
     pub action: PlayerAction,
-    pub look_at: [Option<u32>; 4],
+    pub looking_at: Option<(i32, i32)>,
     pub previous_player_position: (i32, i32),
 }
 

@@ -86,7 +86,7 @@ fn clear_dungeon(world: &mut game::World) {
         dungeon_level: player.dungeon_level,
         state: player.state,
         action: player.action,
-        look_at: player.look_at,
+        looking_at: None,
         previous_player_position: player.previous_player_position,
     };
     // move player entity if exist

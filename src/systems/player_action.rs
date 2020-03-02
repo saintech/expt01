@@ -1,3 +1,4 @@
+use crate::cfg;
 use crate::cmtp::{PlayerAction, PlayerState};
 use crate::engine;
 use crate::engine::game;
@@ -15,6 +16,10 @@ pub fn update(world: &mut game::World) {
         PlayerAction::GoToUpRight => (1, -1),
         PlayerAction::GoToDownLeft => (-1, 1),
         PlayerAction::GoToDownRight => (1, 1),
+        PlayerAction::LookAt(x, y) => {
+            world.player.looking_at = check_cell_in_fov(world, x, y);
+            return;
+        }
         _ => return,
     };
     // the coordinates the player is moving to/attacking
@@ -38,5 +43,18 @@ pub fn update(world: &mut game::World) {
         None => {
             engine::move_by(world.player.id, dx, dy, world);
         }
+    }
+}
+
+fn check_cell_in_fov(world: &game::World, x: i32, y: i32) -> Option<(i32, i32)> {
+    if (x >= cfg::MAP_WIDTH) || (y >= cfg::MAP_HEIGHT) {
+        return None;
+    }
+    let index_in_map = (y * cfg::MAP_WIDTH + x) as usize;
+    let cell = &world.map[index_in_map];
+    if cell.in_fov {
+        Some((x, y))
+    } else {
+        None
     }
 }

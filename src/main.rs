@@ -40,7 +40,6 @@ fn main() {
         systems::stats_menu::update(&mut world);
         systems::help_menu::update(&mut world);
         systems::fov::update(&mut world, &mut fov);
-        systems::mouse_look::update(&mut world);
         systems::render::update(&mut world, &mut tcod);
     }
 }

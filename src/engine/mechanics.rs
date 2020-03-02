@@ -7,10 +7,9 @@ pub fn take_damage(target: &mut Character, damage: i32) -> Option<i32> {
     if damage > 0 {
         target.hp -= damage;
     }
-    // check for death, call the death function
+    // check for death
     if target.hp <= 0 {
         target.alive = false;
-        //fighter.on_death.callback(self, game);
         Some(target.xp)
     } else {
         None
