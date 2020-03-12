@@ -1,8 +1,9 @@
 use crate::cfg;
 use crate::cmtp::{
-    Ai, AiOption, Character, DeathCallback, Equipment, Item, MapCell, MapObject, OwnedItem,
-    PlayerAction, PlayerState, Slot, Symbol,
+    Ai, AiOption, Character, DeathCallback, DialogKind, MapCell, MapObject, PlayerAction,
+    PlayerState, Symbol,
 };
+use crate::engine::asset;
 use crate::engine::game;
 use rand::distributions::{Distribution as _, WeightedIndex};
 use rand::Rng as _;
@@ -47,11 +48,24 @@ fn is_exiting_to_main_menu(world: &game::World) -> bool {
 
 pub fn update(world: &mut game::World) {
     if world.map.is_empty() && (world.player.state == PlayerState::MakingTurn) {
-        if world.entity_indexes.get(&world.player.id).is_none() {
-            spawn_player(world);
+        match asset::ItemsLoader::load() {
+            Err(err) => {
+                let msg = format!(
+                    "Error in the items config.\nFix the error or delete the item \
+                    (see \"dummy\" item for example\"):\n\n{}",
+                    err,
+                );
+                world.add_dialog_box(DialogKind::MessageBox, msg, vec![], 36);
+                world.player.state = PlayerState::InDialog;
+            }
+            Ok(items_loader) => {
+                if world.entity_indexes.get(&world.player.id).is_none() {
+                    spawn_player(world, &items_loader);
+                }
+                make_map(world, &items_loader, world.player.dungeon_level);
+                world.player.action = PlayerAction::None;
+            }
         }
-        make_map(world, world.player.dungeon_level);
-        world.player.action = PlayerAction::None;
     } else if is_exiting_to_main_menu(world) {
         world.player.action = PlayerAction::None;
         save_game(world);
@@ -59,7 +73,7 @@ pub fn update(world: &mut game::World) {
     }
 }
 
-fn make_map(world: &mut game::World, level: u32) {
+fn make_map(world: &mut game::World, items_loader: &asset::ItemsLoader, level: u32) {
     fill_walls(world);
     let mut rooms = vec![];
     if level == 1 {
@@ -82,7 +96,7 @@ fn make_map(world: &mut game::World, level: u32) {
             // "paint" it to the map's tiles
             create_room(new_room, &mut world.map);
             // add some content to this room, such as monsters
-            place_objects(new_room, world, level);
+            place_objects(new_room, world, items_loader, level);
             // center coordinates of the new room, will be useful later
             let (new_x, new_y) = new_room.center();
             if rooms.is_empty() {
@@ -180,7 +194,12 @@ struct Transition {
     value: u32,
 }
 
-fn place_objects(room: Rect, world: &mut game::World, level: u32) {
+fn place_objects(
+    room: Rect,
+    world: &mut game::World,
+    items_loader: &asset::ItemsLoader,
+    level: u32,
+) {
     let mut rng = rand::thread_rng();
     // maxumum number of monsters per room
     let max_monsters = from_dungeon_level(
@@ -222,47 +241,7 @@ fn place_objects(room: Rect, world: &mut game::World, level: u32) {
         ],
         level,
     );
-    let items = [
-        Item::Medkit,
-        Item::SlingshotAmmo,
-        Item::BlastingCartridge,
-        Item::Brick,
-        Item::Melee,
-        Item::Clothing,
-    ];
-    // item random table
-    let item_chances = &[
-        35,
-        from_dungeon_level(
-            &[Transition {
-                level: 4,
-                value: 25,
-            }],
-            level,
-        ),
-        from_dungeon_level(
-            &[Transition {
-                level: 6,
-                value: 25,
-            }],
-            level,
-        ),
-        from_dungeon_level(
-            &[Transition {
-                level: 2,
-                value: 10,
-            }],
-            level,
-        ),
-        from_dungeon_level(&[Transition { level: 4, value: 5 }], level),
-        from_dungeon_level(
-            &[Transition {
-                level: 8,
-                value: 15,
-            }],
-            level,
-        ),
-    ];
+    let (item_ids, item_chances) = items_loader.weighted_table(level);
     let item_choice = WeightedIndex::new(item_chances).unwrap();
     for _ in 0..num_monsters {
         // choose random spot for this monster
@@ -326,7 +305,15 @@ fn place_objects(room: Rect, world: &mut game::World, level: u32) {
         let y = rng.gen_range(room.y1 + 1, room.y2);
         // only place it if the tile is not blocked
         if !is_blocked(x, y, world) {
-            spawn_item(world, items[item_choice.sample(&mut rng)], 0, x, y);
+            let mut item = items_loader.get_clone(item_ids[item_choice.sample(&mut rng)]);
+            item.symbol.x = x;
+            item.symbol.y = y;
+            game::new_entity()
+                .add_symbol(item.symbol)
+                .add_map_object(item.map_object)
+                .add_item(item.item)
+                .add_equipment(item.equipment)
+                .create(world);
         }
     }
 }
@@ -412,60 +399,7 @@ fn spawn_monster(
         .create(world);
 }
 
-fn spawn_item(world: &mut game::World, item: Item, owner: u32, x: i32, y: i32) -> u32 {
-    let (glyph, name, color, equipment) = match item {
-        Item::Medkit => ('\u{90}', "Medkit", cfg::COLOR_DARK_RED, None),
-        Item::SlingshotAmmo => (
-            '\u{91}',
-            "Bullet For Slingshot",
-            cfg::COLOR_DARK_SEPIA,
-            None,
-        ),
-        Item::BlastingCartridge => ('\u{92}', "Blasting Cartridge", cfg::COLOR_DARK_SEPIA, None),
-        Item::Brick => ('\u{93}', "Brick", cfg::COLOR_DARK_SEPIA, None),
-        Item::Melee => (
-            '\u{95}',
-            "Pickaxe",
-            cfg::COLOR_DARK_SKY,
-            Some(Equipment {
-                equipped: false,
-                slot: Slot::Hands,
-                max_hp_bonus: 0,
-                defense_bonus: 0,
-                power_bonus: 3,
-            }),
-        ),
-        Item::Clothing => (
-            '\u{96}',
-            "Workwear",
-            cfg::COLOR_DARK_SKY,
-            Some(Equipment {
-                equipped: false,
-                slot: Slot::Body,
-                max_hp_bonus: 0,
-                defense_bonus: 1,
-                power_bonus: 0,
-            }),
-        ),
-    };
-    let name = String::from(name);
-    let block = false;
-    let always_visible = false;
-    let hidden = false;
-    game::new_entity()
-        .add_symbol(Symbol { x, y, glyph, color })
-        .add_map_object(MapObject {
-            name,
-            block,
-            always_visible,
-            hidden,
-        })
-        .add_item(OwnedItem { item, owner })
-        .add_equipment(equipment)
-        .create(world)
-}
-
-fn spawn_player(world: &mut game::World) {
+fn spawn_player(world: &mut game::World, items_loader: &asset::ItemsLoader) {
     let x = cfg::SCREEN_WIDTH / 2;
     let y = cfg::SCREEN_HEIGHT / 2;
     let glyph = '\u{80}';
@@ -505,16 +439,14 @@ fn spawn_player(world: &mut game::World) {
         .add_ai(AiOption { option: None })
         .create(world);
     // initial equipment: Pipe
-    let pipe_id = spawn_item(world, Item::Melee, world.player.id, 0, 0);
-    let (sym, map_obj, _, eqp) = world.get_item_mut(pipe_id).unwrap();
-    *sym = Symbol {
-        x: 0,
-        y: 0,
-        glyph: '\u{94}',
-        color: cfg::COLOR_DARK_SEPIA,
-    };
-    map_obj.name = String::from("Pipe");
-    eqp.unwrap().power_bonus = 2;
+    let mut pipe = items_loader.get_clone("pipe");
+    pipe.item.owner = world.player.id;
+    game::new_entity()
+        .add_symbol(pipe.symbol)
+        .add_map_object(pipe.map_object)
+        .add_item(pipe.item)
+        .add_equipment(pipe.equipment)
+        .create(world);
     world.add_log(
         cfg::COLOR_ORANGE,
         String::from(

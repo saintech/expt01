@@ -12,3 +12,4 @@ tcod = { version = "0.15", features = ["serialization"] }
 rand = "0.7"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+toml = "0.5.6"

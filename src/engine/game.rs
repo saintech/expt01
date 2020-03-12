@@ -1,6 +1,9 @@
 use super::entity;
 use crate::cfg;
-use crate::cmtp::*;
+use crate::cmtp::{
+    AiOption, Character, DialogBox, DialogKind, Equipment, Item, LogMessage, MapCell, MapObject,
+    Player, Slot, Symbol,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::btree_map::BTreeMap;
 use tcod::{colors, console};
@@ -22,7 +25,7 @@ pub struct World {
     pub map_objects: Vec<MapObject>,
     pub characters: Vec<Character>,
     pub ais: Vec<AiOption>,
-    pub items: Vec<OwnedItem>,
+    pub items: Vec<Item>,
     pub equipments: Vec<Equipment>,
     pub log: Vec<LogMessage>,
     pub dialogs: Vec<DialogBox>,
@@ -116,10 +119,7 @@ impl World {
         })
     }
 
-    pub fn get_item(
-        &self,
-        id: u32,
-    ) -> Option<(&Symbol, &MapObject, &OwnedItem, Option<&Equipment>)> {
+    pub fn get_item(&self, id: u32) -> Option<(&Symbol, &MapObject, &Item, Option<&Equipment>)> {
         let indexes = self
             .entity_indexes
             .get(&id)
@@ -142,7 +142,7 @@ impl World {
     ) -> Option<(
         &mut Symbol,
         &mut MapObject,
-        &mut OwnedItem,
+        &mut Item,
         Option<&mut Equipment>,
     )> {
         let indexes = self
@@ -164,7 +164,7 @@ impl World {
 
     pub fn item_iter(
         &self,
-    ) -> impl Iterator<Item = (u32, &Symbol, &MapObject, &OwnedItem, Option<&Equipment>)> {
+    ) -> impl Iterator<Item = (u32, &Symbol, &MapObject, &Item, Option<&Equipment>)> {
         self.entity_indexes.keys().filter_map(move |&id| {
             self.get_item(id)
                 .map(|char| (id, char.0, char.1, char.2, char.3))

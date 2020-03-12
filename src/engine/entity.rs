@@ -1,5 +1,7 @@
 use super::game;
-use crate::cmtp::*;
+use crate::cmtp::{
+    AiOption, Character, DialogBox, Equipment, Item, LogMessage, MapCell, MapObject, Symbol,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -22,7 +24,7 @@ fn create(
     map_object: Option<MapObject>,
     character: Option<Character>,
     ai: Option<AiOption>,
-    item: Option<OwnedItem>,
+    item: Option<Item>,
     equipment: Option<Equipment>,
     log_message: Option<LogMessage>,
     dialog: Option<DialogBox>,
@@ -58,7 +60,7 @@ pub struct Builder {
     map_object: Option<MapObject>,
     character: Option<Character>,
     ai: Option<AiOption>,
-    item: Option<OwnedItem>,
+    item: Option<Item>,
     equipment: Option<Equipment>,
     log_message: Option<LogMessage>,
     dialog: Option<DialogBox>,
@@ -119,7 +121,7 @@ impl Builder {
         self
     }
 
-    pub fn add_item(mut self, item: OwnedItem) -> Self {
+    pub fn add_item(mut self, item: Item) -> Self {
         self.item = Some(item);
         self
     }

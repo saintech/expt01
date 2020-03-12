@@ -1,7 +1,7 @@
 use crate::cfg;
 use crate::cmtp::{
-    AiOption, Character, Equipment, LogMessage, MapObject, OwnedItem, Player, PlayerAction,
-    PlayerState, Symbol,
+    AiOption, Character, Equipment, Item, LogMessage, MapObject, Player, PlayerAction, PlayerState,
+    Symbol,
 };
 use crate::engine;
 use crate::engine::game;
@@ -138,8 +138,8 @@ fn clear_dungeon(world: &mut game::World) {
             always_visible: map_obj.always_visible,
             hidden: map_obj.hidden,
         };
-        let item = OwnedItem {
-            item: item.item,
+        let item = Item {
+            kind: item.kind,
             owner: temp_world.player.id,
         };
         let equipment = equipment.map(|equipment| Equipment {

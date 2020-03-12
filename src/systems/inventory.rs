@@ -1,5 +1,5 @@
 use crate::cfg;
-use crate::cmtp::{Ai, DialogBox, DialogKind, Item, PlayerAction, PlayerState};
+use crate::cmtp::{Ai, DialogBox, DialogKind, ItemKind, PlayerAction, PlayerState};
 use crate::engine;
 use crate::engine::game;
 use std::f32;
@@ -109,8 +109,8 @@ enum UseResult {
 fn use_item(inventory_id: u32, world: &mut game::World, by_targeting: bool) {
     // just call the "use_function" if it is defined
     if let Some((.., item, _)) = world.get_item(inventory_id) {
-        use Item::*;
-        let on_use = match item.item {
+        use ItemKind::*;
+        let on_use = match item.kind {
             Medkit => use_medkit,
             SlingshotAmmo => shoot_slingshot,
             Brick => throw_brick,

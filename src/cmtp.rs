@@ -53,6 +53,7 @@ impl Default for PlayerAction {
     }
 }
 
+#[serde(default)]
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Symbol {
     pub x: i32,
@@ -70,6 +71,7 @@ pub struct MapCell {
     pub in_fov: bool,
 }
 
+#[serde(default)]
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct MapObject {
     pub name: String,
@@ -78,6 +80,7 @@ pub struct MapObject {
     pub hidden: bool,
 }
 
+#[serde(default)]
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Character {
     pub alive: bool,
@@ -114,13 +117,14 @@ pub enum Ai {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[serde(default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct AiOption {
     pub option: Option<Ai>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum Item {
+pub enum ItemKind {
     Medkit,
     SlingshotAmmo,
     Brick,
@@ -130,8 +134,9 @@ pub enum Item {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct OwnedItem {
-    pub item: Item,
+pub struct Item {
+    pub kind: ItemKind,
+    #[serde(default)]
     pub owner: u32,
 }
 
@@ -139,6 +144,7 @@ pub struct OwnedItem {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Equipment {
     pub slot: Slot,
+    #[serde(default)]
     pub equipped: bool,
     pub max_hp_bonus: i32,
     pub defense_bonus: i32,

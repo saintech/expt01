@@ -1,6 +1,6 @@
 use super::game;
 use crate::cfg;
-use crate::cmtp::*;
+use crate::cmtp::Character;
 
 pub fn take_damage(target: &mut Character, damage: i32) -> Option<i32> {
     // apply damage if possible

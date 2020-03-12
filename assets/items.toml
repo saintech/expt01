@@ -1,0 +1,103 @@
+# A dummy item for example/test purposes only
+[dummy]
+map_object.name = "Dummy"
+item.kind = "Melee"
+symbol.glyph = "\u00FF"
+symbol.color = { r = 79, g = 119, b = 84 }
+equipment.slot = "Hands" # equipment component is optional
+equipment.max_hp_bonus = 0
+equipment.defense_bonus = 0
+equipment.power_bonus = 0
+
+[[dummy.spawn_chances]] # spawn_chances can be added many times for various levels
+from_level = 998 # dungeon level
+probability_weight = 0 # score for random distribution, min - 0 (never), max - 10 (very common)
+
+[[dummy.spawn_chances]]
+from_level = 999
+probability_weight = 0
+
+
+[medkit]
+map_object.name = "Medkit"
+item.kind = "Medkit"
+symbol.glyph = "\u0090"
+symbol.color = { r = 127, g = 78, b = 77 }
+
+[[medkit.spawn_chances]]
+from_level = 1
+probability_weight = 7
+
+
+[slingshot_ammo]
+map_object.name = "Bullet For Slingshot"
+item.kind = "SlingshotAmmo"
+symbol.glyph = "\u0091"
+symbol.color = { r = 92, g = 87, b = 82 }
+
+[[slingshot_ammo.spawn_chances]]
+from_level = 4
+probability_weight = 5
+
+
+[blasting_cartridge]
+map_object.name = "Blasting Cartridge"
+item.kind = "BlastingCartridge"
+symbol.glyph = "\u0092"
+symbol.color = { r = 92, g = 87, b = 82 }
+
+[[blasting_cartridge.spawn_chances]]
+from_level = 6
+probability_weight = 5
+
+
+[brick]
+map_object.name = "Brick"
+item.kind = "Brick"
+symbol.glyph = "\u0093"
+symbol.color = { r = 92, g = 87, b = 82 }
+
+[[brick.spawn_chances]]
+from_level = 2
+probability_weight = 2
+
+
+[pipe]
+map_object.name = "Pipe"
+item.kind = "Melee"
+symbol.glyph = "\u0094"
+symbol.color = { r = 92, g = 87, b = 82 }
+equipment.slot = "Hands"
+equipment.max_hp_bonus = 0
+equipment.defense_bonus = 0
+equipment.power_bonus = 2
+
+
+[pickaxe]
+map_object.name = "Pickaxe"
+item.kind = "Melee"
+symbol.glyph = "\u0095"
+symbol.color = { r = 104, g = 127, b = 139 }
+equipment.slot = "Hands"
+equipment.max_hp_bonus = 0
+equipment.defense_bonus = 0
+equipment.power_bonus = 3
+
+[[pickaxe.spawn_chances]]
+from_level = 4
+probability_weight = 1
+
+
+[workwear]
+map_object.name = "Workwear"
+item.kind = "Melee"
+symbol.glyph = "\u0096"
+symbol.color = { r = 104, g = 127, b = 139 }
+equipment.slot = "Body"
+equipment.max_hp_bonus = 0
+equipment.defense_bonus = 1
+equipment.power_bonus = 0
+
+[[workwear.spawn_chances]]
+from_level = 8
+probability_weight = 3
