@@ -35,7 +35,7 @@ install:
   - rustup target add $TARGET
 
 script:
-  - cargo test
+  - cargo test --target $TARGET
   - cargo build --release --target $TARGET
 
 before_deploy: |
