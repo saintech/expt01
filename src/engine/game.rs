@@ -190,8 +190,10 @@ impl World {
     }
 
     pub fn add_log(&mut self, color: colors::Color, message: impl Into<String>) {
+        let msg = message.into();
+        println!("game log: \"{}\"", &msg);
         new_entity()
-            .add_log_message(LogMessage(message.into(), color))
+            .add_log_message(LogMessage(msg, color))
             .create(self);
     }
 
