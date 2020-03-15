@@ -1,0 +1,79 @@
+# A dummy character for example/test purposes only
+[dummy]
+map_object.name = "Dummy"
+map_object.block = true
+symbol.glyph = "\u00FF"
+symbol.color = { r = 79, g = 119, b = 84 }
+character.hp = 9999
+character.base_max_hp = 9999
+character.base_defense = 9999
+character.base_power = 1
+character.xp = 0
+character.on_death = "Enemy"
+ai = { "Confused" = { previous_ai = "Basic", num_turns = 99999 } } # ai component is optional
+
+[[dummy.spawn_chances]] # spawn_chances can be added many times for various levels
+from_level = 998 # dungeon level
+probability_weight = 0 # score for random distribution, min - 0 (never), max - 10 (very common)
+
+[[dummy.spawn_chances]]
+from_level = 999
+probability_weight = 0
+
+
+[player]
+map_object.name = "Player"
+map_object.block = true
+symbol.glyph = "\u0080"
+symbol.color = { r = 79, g = 119, b = 84 }
+character.level = 1
+character.hp = 30
+character.base_max_hp = 30
+character.base_defense = 1
+character.base_power = 2
+character.xp = 0
+character.on_death = "Player"
+
+
+[roach]
+map_object.name = "Roach"
+map_object.block = true
+symbol.glyph = "\u0082"
+symbol.color = { r = 155, g = 107, b = 77 }
+character.hp = 20
+character.base_max_hp = 20
+character.base_defense = 0
+character.base_power = 4
+character.xp = 35
+character.on_death = "Enemy"
+ai = "Basic"
+
+[[roach.spawn_chances]]
+from_level = 1
+probability_weight = 8
+
+
+[rat]
+map_object.name = "Rat"
+map_object.block = true
+symbol.glyph = "\u0084"
+symbol.color = { r = 104, g = 127, b = 139 }
+character.hp = 30
+character.base_max_hp = 30
+character.base_defense = 2
+character.base_power = 8
+character.xp = 100
+character.on_death = "Enemy"
+ai = "Basic"
+
+[[roach.spawn_chances]]
+from_level = 3
+probability_weight = 1
+
+[[roach.spawn_chances]]
+from_level = 5
+probability_weight = 3
+
+[[roach.spawn_chances]]
+from_level = 7
+probability_weight = 6

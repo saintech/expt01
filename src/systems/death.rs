@@ -15,7 +15,7 @@ pub fn update(world: &mut game::World) {
         use DeathCallback::*;
         let callback: fn(u32, &mut game::World) = match callback {
             Player => player_death,
-            Monster => monster_death,
+            Enemy => monster_death,
             None => unreachable!(),
         };
         callback(id, world);

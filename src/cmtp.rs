@@ -83,7 +83,9 @@ pub struct MapObject {
 #[serde(default)]
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Character {
+    #[serde(default)]
     pub alive: bool,
+    #[serde(default)]
     pub level: i32,
     pub hp: i32,
     pub base_max_hp: i32,
@@ -91,6 +93,7 @@ pub struct Character {
     pub base_power: i32,
     pub xp: i32,
     pub on_death: DeathCallback,
+    #[serde(default)]
     pub looking_right: bool,
 }
 
@@ -98,7 +101,7 @@ pub struct Character {
 pub enum DeathCallback {
     None,
     Player,
-    Monster,
+    Enemy,
 }
 
 impl Default for DeathCallback {

@@ -1,7 +1,6 @@
 use crate::cfg;
 use crate::cmtp::{
-    Ai, AiOption, Character, DeathCallback, DialogKind, MapCell, MapObject, PlayerAction,
-    PlayerState, Symbol,
+    AiOption, DialogKind, MapCell, MapObject, PlayerAction, PlayerState, Symbol,
 };
 use crate::engine::asset;
 use crate::engine::game;
@@ -48,8 +47,17 @@ fn is_exiting_to_main_menu(world: &game::World) -> bool {
 
 pub fn update(world: &mut game::World) {
     if world.map.is_empty() && (world.player.state == PlayerState::MakingTurn) {
-        match asset::ItemsLoader::load() {
-            Err(err) => {
+        match (asset::CharactersLoader::load(), asset::ItemsLoader::load()) {
+            (Err(err), _) => {
+                let msg = format!(
+                    "Error in the characters config.\nFix the error or delete the character \
+                    (see \"dummy\" character for example\"):\n\n{}",
+                    err,
+                );
+                world.add_dialog_box(DialogKind::MessageBox, msg, vec![], 36);
+                world.player.state = PlayerState::InDialog;
+            }
+            (_, Err(err)) => {
                 let msg = format!(
                     "Error in the items config.\nFix the error or delete the item \
                     (see \"dummy\" item for example\"):\n\n{}",
@@ -58,11 +66,11 @@ pub fn update(world: &mut game::World) {
                 world.add_dialog_box(DialogKind::MessageBox, msg, vec![], 36);
                 world.player.state = PlayerState::InDialog;
             }
-            Ok(items_loader) => {
+            (Ok(char_loader), Ok(items_loader)) => {
                 if world.entity_indexes.get(&world.player.id).is_none() {
-                    spawn_player(world, &items_loader);
+                    spawn_player(world, &char_loader, &items_loader);
                 }
-                make_map(world, &items_loader, world.player.dungeon_level);
+                make_map(world, &char_loader, &items_loader, world.player.dungeon_level);
                 world.player.action = PlayerAction::None;
             }
         }
@@ -73,7 +81,7 @@ pub fn update(world: &mut game::World) {
     }
 }
 
-fn make_map(world: &mut game::World, items_loader: &asset::ItemsLoader, level: u32) {
+fn make_map(world: &mut game::World, char_loader: &asset::CharactersLoader, items_loader: &asset::ItemsLoader, level: u32) {
     fill_walls(world);
     let mut rooms = vec![];
     if level == 1 {
@@ -96,7 +104,7 @@ fn make_map(world: &mut game::World, items_loader: &asset::ItemsLoader, level: u
             // "paint" it to the map's tiles
             create_room(new_room, &mut world.map);
             // add some content to this room, such as monsters
-            place_objects(new_room, world, items_loader, level);
+            place_objects(new_room, world, char_loader, items_loader, level);
             // center coordinates of the new room, will be useful later
             let (new_x, new_y) = new_room.center();
             if rooms.is_empty() {
@@ -197,6 +205,7 @@ struct Transition {
 fn place_objects(
     room: Rect,
     world: &mut game::World,
+    char_loader: &asset::CharactersLoader,
     items_loader: &asset::ItemsLoader,
     level: u32,
 ) {
@@ -213,26 +222,26 @@ fn place_objects(
     // choose random number of monsters
     let num_monsters = rng.gen_range(0, max_monsters + 1);
     // monster random table
-    let rat_chance = from_dungeon_level(
-        &[
-            Transition {
-                level: 3,
-                value: 15,
-            },
-            Transition {
-                level: 5,
-                value: 30,
-            },
-            Transition {
-                level: 7,
-                value: 60,
-            },
-        ],
-        level,
-    );
-    let monsters = ["roach", "rat"];
-    let monster_chances = &[80, rat_chance];
+    let (monster_ids, monster_chances) = char_loader.weighted_table(level);
     let monster_choice = WeightedIndex::new(monster_chances).unwrap();
+    for _ in 0..num_monsters {
+        // choose random spot for this monster
+        let x = rng.gen_range(room.x1 + 1, room.x2);
+        let y = rng.gen_range(room.y1 + 1, room.y2);
+        // only place it if the tile is not blocked
+        if !is_blocked(x, y, world) {
+            let mut monster = char_loader.get_clone(monster_ids[monster_choice.sample(&mut rng)]);
+            monster.character.alive = true;
+            monster.symbol.x = x;
+            monster.symbol.y = y;
+            game::new_entity()
+                .add_symbol(monster.symbol)
+                .add_map_object(monster.map_object)
+                .add_character(monster.character)
+                .add_ai(AiOption { option: monster.ai })
+                .create(world);
+        }
+    }
     // maximum number of items per room
     let max_items = from_dungeon_level(
         &[
@@ -241,64 +250,10 @@ fn place_objects(
         ],
         level,
     );
-    let (item_ids, item_chances) = items_loader.weighted_table(level);
-    let item_choice = WeightedIndex::new(item_chances).unwrap();
-    for _ in 0..num_monsters {
-        // choose random spot for this monster
-        let x = rng.gen_range(room.x1 + 1, room.x2);
-        let y = rng.gen_range(room.y1 + 1, room.y2);
-        // only place it if the tile is not blocked
-        if !is_blocked(x, y, world) {
-            let (name, sy, ch, ai) = match monsters[monster_choice.sample(&mut rng)] {
-                "roach" => (
-                    "Roach",
-                    Symbol {
-                        x,
-                        y,
-                        glyph: '\u{82}',
-                        color: cfg::COLOR_ORANGE,
-                    },
-                    Character {
-                        alive: true,
-                        level: 1,
-                        base_max_hp: 20,
-                        hp: 20,
-                        base_defense: 0,
-                        base_power: 4,
-                        xp: 35,
-                        on_death: DeathCallback::Monster,
-                        looking_right: false,
-                    },
-                    Ai::Basic,
-                ),
-                "rat" => (
-                    "Rat",
-                    Symbol {
-                        x,
-                        y,
-                        glyph: '\u{84}',
-                        color: cfg::COLOR_DARK_SKY,
-                    },
-                    Character {
-                        alive: true,
-                        level: 1,
-                        base_max_hp: 30,
-                        hp: 30,
-                        base_defense: 2,
-                        base_power: 8,
-                        xp: 100,
-                        on_death: DeathCallback::Monster,
-                        looking_right: false,
-                    },
-                    Ai::Basic,
-                ),
-                _ => unreachable!(),
-            };
-            spawn_monster(world, name, sy, ch, ai);
-        }
-    }
     // choose random number of items
     let num_items = rng.gen_range(0, max_items + 1);
+    let (item_ids, item_chances) = items_loader.weighted_table(level);
+    let item_choice = WeightedIndex::new(item_chances).unwrap();
     for _ in 0..num_items {
         // choose random spot for this item
         let x = rng.gen_range(room.x1 + 1, room.x2);
@@ -375,68 +330,16 @@ fn is_blocked(x: i32, y: i32, world: &game::World) -> bool {
     })
 }
 
-fn spawn_monster(
-    world: &mut game::World,
-    name: &str,
-    symbol: Symbol,
-    character: Character,
-    ai: Ai,
-) {
-    let name = String::from(name);
-    let block = true;
-    let always_visible = false;
-    let hidden = false;
-    game::new_entity()
-        .add_symbol(symbol)
-        .add_map_object(MapObject {
-            name,
-            block,
-            always_visible,
-            hidden,
-        })
-        .add_character(character)
-        .add_ai(AiOption { option: Some(ai) })
-        .create(world);
-}
-
-fn spawn_player(world: &mut game::World, items_loader: &asset::ItemsLoader) {
-    let x = cfg::SCREEN_WIDTH / 2;
-    let y = cfg::SCREEN_HEIGHT / 2;
-    let glyph = '\u{80}';
-    let color = cfg::COLOR_GREEN;
-    let name = String::from("Player");
-    let block = true;
-    let always_visible = false;
-    let hidden = false;
-    let alive = true;
-    let level = 1;
-    let hp = 30;
-    let base_max_hp = 30;
-    let base_defense = 1;
-    let base_power = 2;
-    let xp = 0;
-    let on_death = DeathCallback::Player;
-    let looking_right = false;
+fn spawn_player(world: &mut game::World, char_loader: &asset::CharactersLoader, items_loader: &asset::ItemsLoader) {
+    let mut player = char_loader.get_clone("player");
+    player.character.alive = true;
+    player.symbol.x = cfg::SCREEN_WIDTH / 2;
+    player.symbol.y = cfg::SCREEN_HEIGHT / 2;
     world.player.id = game::new_entity()
-        .add_symbol(Symbol { x, y, glyph, color })
-        .add_map_object(MapObject {
-            name,
-            block,
-            always_visible,
-            hidden,
-        })
-        .add_character(Character {
-            alive,
-            level,
-            hp,
-            base_max_hp,
-            base_defense,
-            base_power,
-            xp,
-            on_death,
-            looking_right,
-        })
-        .add_ai(AiOption { option: None })
+        .add_symbol(player.symbol)
+        .add_map_object(player.map_object)
+        .add_character(player.character)
+        .add_ai(AiOption { option: player.ai })
         .create(world);
     // initial equipment: Pipe
     let mut pipe = items_loader.get_clone("pipe");
