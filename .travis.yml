@@ -44,7 +44,7 @@ before_deploy: |
   mv target/$TARGET/release/build/*/out/*$LIBRARY_EXTENTION $EXECUTABLE_NAME
   mv assets/ $EXECUTABLE_NAME/assets/
   mv *.png $EXECUTABLE_NAME
-  if [ TARGET == 'x86_64-pc-windows-msvc' ]; then mv debug_mode.bat $EXECUTABLE_NAME; fi
+  if [ $TARGET == 'x86_64-pc-windows-msvc' ]; then mv debug_mode.bat $EXECUTABLE_NAME; fi
   $ARCHIVE_CMD $EXECUTABLE_NAME-$TARGET$ARCHIVE_EXTENTION $EXECUTABLE_NAME
   ls -la $EXECUTABLE_NAME
 
