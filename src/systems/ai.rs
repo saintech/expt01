@@ -72,7 +72,37 @@ fn move_towards(id: u32, target_x: i32, target_y: i32, world: &mut game::World) 
     // convert to integer so the movement is restricted to the map grid
     let dx = (dx as f32 / distance).round() as i32;
     let dy = (dy as f32 / distance).round() as i32;
-    engine::move_by(id, dx, dy, world);
+    if !world.is_blocked(x + dx, y + dy) {
+        engine::move_by(id, dx, dy, world);
+    } else {
+        let (plus_45_dx, plus_45_dy) = rotate_plus_45(dx, dy);
+        let (minus_45_dx, minus_45_dy) = rotate_minus_45(dx, dy);
+        if !world.is_blocked(x + plus_45_dx, y + plus_45_dy) {
+            engine::move_by(id, plus_45_dx, plus_45_dy, world);
+        } else if !world.is_blocked(x + minus_45_dx, y + minus_45_dy) {
+            engine::move_by(id, minus_45_dx, minus_45_dy, world);
+        }
+    }
+}
+
+fn rotate_plus_45(x: i32, y: i32) -> (i32, i32) {
+    const SIN_45: f32 = 0.7;
+    const COS_45: f32 = 0.7;
+    let (x, y) = (x as f32, y as f32);
+    (
+        (x * COS_45 - y * SIN_45).round() as i32,
+        (x * COS_45 + y * SIN_45).round() as i32,
+    )
+}
+
+fn rotate_minus_45(x: i32, y: i32) -> (i32, i32) {
+    const SIN_45: f32 = 0.7;
+    const COS_45: f32 = 0.7;
+    let (x, y) = (x as f32, y as f32);
+    (
+        (x * COS_45 + y * SIN_45).round() as i32,
+        (-x * COS_45 + y * SIN_45).round() as i32,
+    )
 }
 
 fn ai_confused(
