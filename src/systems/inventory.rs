@@ -1,5 +1,5 @@
 use crate::cfg;
-use crate::cmtp::{Ai, DialogBox, DialogKind, ItemKind, PlayerAction, PlayerState};
+use crate::cmtp::{Ai, AmmoKind, DialogBox, DialogKind, ItemKind, PlayerAction, PlayerState, Slot};
 use crate::engine;
 use crate::engine::game;
 use std::f32;
@@ -52,7 +52,7 @@ pub fn update(world: &mut game::World) {
         let inventory_id = match world.player.action {
             PlayerAction::SelectMenuItem(i) => world
                 .item_iter()
-                .filter(|(.., item, _)| item.owner == world.player.id)
+                .filter(|(.., item, _, _)| item.owner == world.player.id)
                 .nth(i)
                 .map(|(id, ..)| id),
             PlayerAction::Cancel => {
@@ -85,12 +85,13 @@ fn add_inventory_menu(world: &mut game::World, kind: DialogKind, header: String)
     // how a menu with each item of the inventory as an option
     let mut options: Vec<_> = world
         .item_iter()
-        .filter(|(.., item, _)| item.owner == world.player.id)
-        .map(|(.., map_obj, _, eqp)| {
-            eqp.filter(|eqp| eqp.equipped)
-                .map_or(map_obj.name.clone(), |eqp| {
-                    format!("{} (on {})", map_obj.name, eqp.slot)
-                })
+        .filter(|(.., item, _, _)| item.owner == world.player.id)
+        .map(|(.., map_obj, _, eqp, ammo)| {
+            let count_postfix = ammo.map_or(String::new(), |ammo| format!(" x{}", ammo.count));
+            let equipped_postfix = eqp
+                .filter(|eqp| eqp.equipped)
+                .map_or(String::new(), |eqp| format!(" (on {})", eqp.slot));
+            map_obj.name.clone() + &count_postfix + &equipped_postfix
         })
         .collect();
     if options.is_empty() {
@@ -108,15 +109,17 @@ enum UseResult {
 
 fn use_item(inventory_id: u32, world: &mut game::World, by_targeting: bool) {
     // just call the "use_function" if it is defined
-    if let Some((.., item, _)) = world.get_item(inventory_id) {
+    if let Some((.., item, _, _)) = world.get_item(inventory_id) {
         use ItemKind::*;
         let on_use = match item.kind {
             Medkit => use_medkit,
-            SlingshotAmmo => shoot_slingshot,
+            FutureUnknownDamager => shoot_slingshot,
             Brick => throw_brick,
             BlastingCartridge => throw_blasting_cartridge,
             Melee => toggle_equipment,
             Clothing => toggle_equipment,
+            Ranged(_) => toggle_equipment,
+            Ammo => toggle_equipment,
         };
         match on_use(inventory_id, world, by_targeting) {
             UseResult::UsedUp => {
@@ -304,10 +307,33 @@ fn throw_blasting_cartridge(
     }
 }
 
+fn get_ammo_kind(kind: ItemKind) -> Option<AmmoKind> {
+    match kind {
+        ItemKind::Ranged(ammo_kind) => Some(ammo_kind),
+        _ => None,
+    }
+}
+
 fn toggle_equipment(inventory_id: u32, world: &mut game::World, _by_targeting: bool) -> UseResult {
-    let equipment = world.get_item(inventory_id).unwrap().3.unwrap();
+    let inventory = world.get_item(inventory_id).unwrap();
+    let equipment = inventory.3.unwrap();
+    let maybe_ammo_with_kind = inventory.4.map(|ammo| ammo.kind);
+    let incompatible_ammo = world
+        .get_equipped_in_slot(Slot::Hands)
+        .map(|id| world.get_item(id).unwrap().2.kind)
+        .and_then(get_ammo_kind)
+        .and_then(|weapon_k| maybe_ammo_with_kind.map(|ammo_k| ammo_k != weapon_k))
+        .unwrap_or(maybe_ammo_with_kind.is_some());
     if equipment.equipped {
         dequip(inventory_id, world);
+        world
+            .get_equipped_in_slot(Slot::Ammo)
+            .map(|id| dequip(id, world));
+    } else if incompatible_ammo {
+        world.add_log(
+            cfg::COLOR_ORANGE,
+            format!("This ammo doesn't seem to fit right."),
+        );
     } else {
         // if the slot is already being used, dequip whatever is there first
         if let Some(current) = world.get_equipped_in_slot(equipment.slot) {
@@ -367,7 +393,7 @@ fn drop_item(inventory_id: u32, world: &mut game::World) {
     }
     let player_symbol = world.player_sym();
     let (player_x, player_y) = (player_symbol.x, player_symbol.y);
-    let (symbol, map_obj, item, _) = world.get_item_mut(inventory_id).unwrap();
+    let (symbol, map_obj, item, ..) = world.get_item_mut(inventory_id).unwrap();
     item.owner = 0;
     map_obj.hidden = false;
     symbol.x = player_x;

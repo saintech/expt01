@@ -80,7 +80,6 @@ pub struct MapObject {
     pub hidden: bool,
 }
 
-#[serde(default)]
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Character {
     #[serde(default)]
@@ -120,19 +119,20 @@ pub enum Ai {
     },
 }
 
-#[serde(default)]
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AiOption {
     pub option: Option<Ai>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ItemKind {
     Medkit,
-    SlingshotAmmo,
+    FutureUnknownDamager,
     Brick,
     BlastingCartridge,
     Melee,
+    Ranged(AmmoKind),
+    Ammo,
     Clothing,
 }
 
@@ -158,6 +158,7 @@ pub struct Equipment {
 pub enum Slot {
     Body,
     Hands,
+    Ammo,
 }
 
 impl std::fmt::Display for Slot {
@@ -165,8 +166,20 @@ impl std::fmt::Display for Slot {
         match *self {
             Slot::Body => write!(f, "body"),
             Slot::Hands => write!(f, "hands"),
+            Slot::Ammo => write!(f, "ammo"),
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Ammo {
+    pub kind: AmmoKind,
+    pub count: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum AmmoKind {
+    SlingshotAmmo,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

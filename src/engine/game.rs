@@ -1,8 +1,8 @@
 use super::entity;
 use crate::cfg;
 use crate::cmtp::{
-    AiOption, Character, DialogBox, DialogKind, Equipment, Item, LogMessage, MapCell, MapObject,
-    Player, Slot, Symbol,
+    AiOption, Ammo, Character, DialogBox, DialogKind, Equipment, Item, LogMessage, MapCell,
+    MapObject, Player, Slot, Symbol,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::btree_map::BTreeMap;
@@ -27,6 +27,7 @@ pub struct World {
     pub ais: Vec<AiOption>,
     pub items: Vec<Item>,
     pub equipments: Vec<Equipment>,
+    pub ammos: Vec<Ammo>,
     pub log: Vec<LogMessage>,
     pub dialogs: Vec<DialogBox>,
 }
@@ -119,17 +120,27 @@ impl World {
         })
     }
 
-    pub fn get_item(&self, id: u32) -> Option<(&Symbol, &MapObject, &Item, Option<&Equipment>)> {
+    pub fn get_item(
+        &self,
+        id: u32,
+    ) -> Option<(
+        &Symbol,
+        &MapObject,
+        &Item,
+        Option<&Equipment>,
+        Option<&Ammo>,
+    )> {
         let indexes = self
             .entity_indexes
             .get(&id)
-            .map(|i| (i.symbol, i.map_object, i.item, i.equipment));
-        if let Some((Some(si), Some(moi), Some(ii), ei)) = indexes {
+            .map(|i| (i.symbol, i.map_object, i.item, i.equipment, i.ammo));
+        if let Some((Some(si), Some(moi), Some(ii), ei, ai)) = indexes {
             Some((
                 &self.symbols[si],
                 &self.map_objects[moi],
                 &self.items[ii],
                 ei.map(|ei| &self.equipments[ei]),
+                ai.map(|ai| &self.ammos[ai]),
             ))
         } else {
             None
@@ -144,18 +155,21 @@ impl World {
         &mut MapObject,
         &mut Item,
         Option<&mut Equipment>,
+        Option<&mut Ammo>,
     )> {
         let indexes = self
             .entity_indexes
             .get(&id)
-            .map(|i| (i.symbol, i.map_object, i.item, i.equipment));
-        if let Some((Some(si), Some(moi), Some(ii), ei)) = indexes {
+            .map(|i| (i.symbol, i.map_object, i.item, i.equipment, i.ammo));
+        if let Some((Some(si), Some(moi), Some(ii), ei, ai)) = indexes {
             let equipments = &mut self.equipments;
+            let ammos = &mut self.ammos;
             Some((
                 &mut self.symbols[si],
                 &mut self.map_objects[moi],
                 &mut self.items[ii],
                 ei.map(move |ei| &mut equipments[ei]),
+                ai.map(move |ai| &mut ammos[ai]),
             ))
         } else {
             None
@@ -164,10 +178,19 @@ impl World {
 
     pub fn item_iter(
         &self,
-    ) -> impl Iterator<Item = (u32, &Symbol, &MapObject, &Item, Option<&Equipment>)> {
+    ) -> impl Iterator<
+        Item = (
+            u32,
+            &Symbol,
+            &MapObject,
+            &Item,
+            Option<&Equipment>,
+            Option<&Ammo>,
+        ),
+    > {
         self.entity_indexes.keys().filter_map(move |&id| {
             self.get_item(id)
-                .map(|char| (id, char.0, char.1, char.2, char.3))
+                .map(|item| (id, item.0, item.1, item.2, item.3, item.4))
         })
     }
 
@@ -216,7 +239,7 @@ impl World {
 
     /// returns a list of equipped items
     fn get_all_equipped(&self, owner: u32) -> impl Iterator<Item = &Equipment> {
-        self.item_iter().filter_map(move |(.., item, eqp)| {
+        self.item_iter().filter_map(move |(.., item, eqp, _)| {
             eqp.filter(|eqp| (item.owner == owner) && eqp.equipped)
         })
     }
@@ -246,8 +269,9 @@ impl World {
     }
 
     pub fn get_equipped_in_slot(&self, slot: Slot) -> Option<u32> {
-        self.item_iter().find_map(|(id, .., eqp)| {
-            eqp.filter(|eqp| eqp.equipped && (eqp.slot == slot))
+        self.item_iter().find_map(|(id, .., itm, eqp, _)| {
+            eqp.filter(|_| itm.owner == self.player.id)
+                .filter(|eqp| eqp.equipped && (eqp.slot == slot))
                 .and(Some(id))
         })
     }

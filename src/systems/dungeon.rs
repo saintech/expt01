@@ -1,7 +1,5 @@
 use crate::cfg;
-use crate::cmtp::{
-    AiOption, DialogKind, MapCell, MapObject, PlayerAction, PlayerState, Symbol,
-};
+use crate::cmtp::{AiOption, DialogKind, MapCell, MapObject, PlayerAction, PlayerState, Symbol};
 use crate::engine::asset;
 use crate::engine::game;
 use rand::distributions::{Distribution as _, WeightedIndex};
@@ -70,7 +68,12 @@ pub fn update(world: &mut game::World) {
                 if world.entity_indexes.get(&world.player.id).is_none() {
                     spawn_player(world, &char_loader, &items_loader);
                 }
-                make_map(world, &char_loader, &items_loader, world.player.dungeon_level);
+                make_map(
+                    world,
+                    &char_loader,
+                    &items_loader,
+                    world.player.dungeon_level,
+                );
                 world.player.action = PlayerAction::None;
             }
         }
@@ -81,7 +84,12 @@ pub fn update(world: &mut game::World) {
     }
 }
 
-fn make_map(world: &mut game::World, char_loader: &asset::CharactersLoader, items_loader: &asset::ItemsLoader, level: u32) {
+fn make_map(
+    world: &mut game::World,
+    char_loader: &asset::CharactersLoader,
+    items_loader: &asset::ItemsLoader,
+    level: u32,
+) {
     fill_walls(world);
     let mut rooms = vec![];
     if level == 1 {
@@ -268,6 +276,7 @@ fn place_objects(
                 .add_map_object(item.map_object)
                 .add_item(item.item)
                 .add_equipment(item.equipment)
+                .add_ammo(item.ammo)
                 .create(world);
         }
     }
@@ -330,7 +339,11 @@ fn is_blocked(x: i32, y: i32, world: &game::World) -> bool {
     })
 }
 
-fn spawn_player(world: &mut game::World, char_loader: &asset::CharactersLoader, items_loader: &asset::ItemsLoader) {
+fn spawn_player(
+    world: &mut game::World,
+    char_loader: &asset::CharactersLoader,
+    items_loader: &asset::ItemsLoader,
+) {
     let mut player = char_loader.get_clone("player");
     player.character.alive = true;
     player.symbol.x = cfg::SCREEN_WIDTH / 2;

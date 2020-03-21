@@ -1,7 +1,7 @@
 use crate::cfg;
 use crate::cmtp::{
-    AiOption, Character, Equipment, Item, LogMessage, MapObject, Player, PlayerAction, PlayerState,
-    Symbol,
+    AiOption, Ammo, Character, Equipment, Item, ItemKind, LogMessage, MapObject, Player,
+    PlayerAction, PlayerState, Slot, Symbol,
 };
 use crate::engine;
 use crate::engine::game;
@@ -24,7 +24,12 @@ pub fn update(world: &mut game::World) {
         .map_obj_iter()
         .any(|(_, sym, map_obj, ..)| ((sym.x, sym.y) == player_pos) && (map_obj.name == "stairs"));
     if let Some(item_id) = item_id {
-        pick_item_up(item_id, world);
+        let maybe_existing_ammo = get_existing_ammo(item_id, world);
+        if let Some(existing_ammo_id) = maybe_existing_ammo {
+            add_ammo_to_existing(existing_ammo_id, item_id, world);
+        } else {
+            pick_item_up(item_id, world);
+        }
     } else if player_on_stairs {
         next_level(world);
     };
@@ -46,16 +51,45 @@ fn pick_item_up(object_id: u32, world: &mut game::World) {
     } else {
         world.add_log(cfg::COLOR_GREEN, format!("You picked up a {}!", name));
         let player_id = world.player.id;
-        let (_, map_obj, item, eqp) = world.get_item_mut(object_id).unwrap();
+        let (_, map_obj, item, eqp, _) = world.get_item_mut(object_id).unwrap();
         item.owner = player_id;
         map_obj.hidden = true;
         // automatically equip, if the corresponding equipment slot is unused
         if let Some(&mut Equipment { slot, .. }) = eqp {
-            if world.get_equipped_in_slot(slot).is_none() {
+            if (slot != Slot::Ammo) && world.get_equipped_in_slot(slot).is_none() {
                 engine::equip(object_id, world);
             }
         }
     }
+}
+
+fn get_existing_ammo(unknown_item_id: u32, world: &game::World) -> Option<u32> {
+    let player_id = world.player.id;
+    let item_name = &world.get_item(unknown_item_id).unwrap().1.name;
+    let maybe_ammo = world
+        .get_item(unknown_item_id)
+        .and_then(|(.., ammo)| ammo)
+        .map(|ammo| (item_name, ammo.kind));
+    if let Some(new_ammo) = maybe_ammo {
+        world
+            .item_iter()
+            .filter(|&(.., item, _, _)| (item.kind == ItemKind::Ammo) && (item.owner == player_id))
+            .map(|(id, _, map_obj, .., ammo)| (id, (&map_obj.name, ammo.unwrap().kind)))
+            .map(|(id, existing_ammo)| (id, existing_ammo, new_ammo))
+            .find(|&(_, existing_ammo, new_ammo)| existing_ammo == new_ammo)
+            .map(|(id, ..)| id)
+    } else {
+        None
+    }
+}
+
+fn add_ammo_to_existing(existing_ammo_id: u32, new_ammo_id: u32, world: &mut game::World) {
+    let name = world.get_item(new_ammo_id).unwrap().1.name.clone();
+    let count_of_new = world.get_item(new_ammo_id).unwrap().4.unwrap().count;
+    let mut existing_ammo = world.get_item_mut(existing_ammo_id).unwrap().4.unwrap();
+    existing_ammo.count += count_of_new;
+    world.entity_indexes.remove(&new_ammo_id);
+    world.add_log(cfg::COLOR_GREEN, format!("You picked up a {}!", name));
 }
 
 /// Advance to the next level
@@ -124,8 +158,8 @@ fn clear_dungeon(world: &mut game::World) {
     // copy inventory
     let inventory = world
         .item_iter()
-        .filter(|(.., item, _)| item.owner == world.player.id);
-    for (_, sym, map_obj, item, equipment) in inventory {
+        .filter(|(.., item, _, _)| item.owner == world.player.id);
+    for (_, sym, map_obj, item, equipment, ammo) in inventory {
         let symbol = Symbol {
             x: sym.x,
             y: sym.y,
@@ -149,11 +183,16 @@ fn clear_dungeon(world: &mut game::World) {
             defense_bonus: equipment.defense_bonus,
             power_bonus: equipment.power_bonus,
         });
+        let ammo = ammo.map(|ammo| Ammo {
+            kind: ammo.kind,
+            count: ammo.count,
+        });
         game::new_entity()
             .add_symbol(symbol)
             .add_map_object(map_object)
             .add_item(item)
             .add_equipment(equipment)
+            .add_ammo(ammo)
             .create(&mut temp_world);
     }
     // copy logs

@@ -1,6 +1,6 @@
 use super::game;
 use crate::cfg;
-use crate::cmtp::Character;
+use crate::cmtp::{Character, Slot};
 
 pub fn take_damage(target: &mut Character, damage: i32) -> Option<i32> {
     // apply damage if possible
@@ -43,6 +43,18 @@ pub fn attack_by(attacker_id: u32, target_id: u32, world: &mut game::World) {
             ),
         );
     }
+    let remaining_ammo = world
+        .get_equipped_in_slot(Slot::Ammo)
+        .and_then(|id| world.get_item_mut(id).map(|item| (id, item)))
+        .and_then(|(id, (.., ammo))| ammo.map(|ammo| (id, ammo)))
+        .map(|(id, ammo)| {
+            ammo.count -= 1;
+            (id, ammo.count)
+        });
+    if let Some((ammo_id, 0)) = remaining_ammo {
+        world.entity_indexes.remove(&ammo_id);
+        world.add_log(cfg::COLOR_ORANGE, "Ammo is over");
+    }
 }
 
 /// Equip object and show a message about it
@@ -65,6 +77,8 @@ pub fn equip(id: u32, world: &mut game::World) {
 
 /// move by the given amount, if the destination is not blocked
 pub fn move_by(id: u32, dx: i32, dy: i32, world: &mut game::World) {
+    let dx = dx.signum();
+    let dy = dy.signum();
     let symbol = world.get_character(id).unwrap().0;
     let (x, y) = (symbol.x, symbol.y);
     if !world.is_blocked(x + dx, y + dy) {

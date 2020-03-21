@@ -1,6 +1,6 @@
 use super::game;
 use crate::cmtp::{
-    AiOption, Character, DialogBox, Equipment, Item, LogMessage, MapCell, MapObject, Symbol,
+    AiOption, Ammo, Character, DialogBox, Equipment, Item, LogMessage, MapCell, MapObject, Symbol,
 };
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +13,7 @@ pub struct Indexes {
     pub ai: Option<usize>,
     pub item: Option<usize>,
     pub equipment: Option<usize>,
+    pub ammo: Option<usize>,
     pub log_message: Option<usize>,
     pub dialog: Option<usize>,
 }
@@ -26,6 +27,7 @@ fn create(
     ai: Option<AiOption>,
     item: Option<Item>,
     equipment: Option<Equipment>,
+    ammo: Option<Ammo>,
     log_message: Option<LogMessage>,
     dialog: Option<DialogBox>,
 ) -> u32 {
@@ -37,6 +39,7 @@ fn create(
         ai: ai.as_ref().map(|_| world.ais.len()),
         item: item.as_ref().map(|_| world.items.len()),
         equipment: equipment.as_ref().map(|_| world.equipments.len()),
+        ammo: ammo.as_ref().map(|_| world.ammos.len()),
         log_message: log_message.as_ref().map(|_| world.log.len()),
         dialog: dialog.as_ref().map(|_| world.dialogs.len()),
     };
@@ -47,6 +50,7 @@ fn create(
     ai.map(|c| world.ais.push(c));
     item.map(|c| world.items.push(c));
     equipment.map(|c| world.equipments.push(c));
+    ammo.map(|c| world.ammos.push(c));
     log_message.map(|c| world.log.push(c));
     dialog.map(|c| world.dialogs.push(c));
     world.id_count += 1;
@@ -62,6 +66,7 @@ pub struct Builder {
     ai: Option<AiOption>,
     item: Option<Item>,
     equipment: Option<Equipment>,
+    ammo: Option<Ammo>,
     log_message: Option<LogMessage>,
     dialog: Option<DialogBox>,
 }
@@ -76,6 +81,7 @@ impl Builder {
             ai: None,
             item: None,
             equipment: None,
+            ammo: None,
             log_message: None,
             dialog: None,
         }
@@ -91,6 +97,7 @@ impl Builder {
             self.ai,
             self.item,
             self.equipment,
+            self.ammo,
             self.log_message,
             self.dialog,
         )
@@ -128,6 +135,11 @@ impl Builder {
 
     pub fn add_equipment(mut self, equipment: Option<Equipment>) -> Self {
         self.equipment = equipment;
+        self
+    }
+
+    pub fn add_ammo(mut self, ammo: Option<Ammo>) -> Self {
+        self.ammo = ammo;
         self
     }
 

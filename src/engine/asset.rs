@@ -1,5 +1,5 @@
 use crate::cmtp;
-use crate::cmtp::{Ai, Equipment, MapObject, Symbol};
+use crate::cmtp::{Ai, Ammo, Equipment, MapObject, Symbol};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::{error::Error, fs, io, io::Read as _};
@@ -10,6 +10,7 @@ pub struct Item {
     pub map_object: MapObject,
     pub item: cmtp::Item,
     pub equipment: Option<Equipment>,
+    pub ammo: Option<Ammo>,
     #[serde(default)]
     spawn_chances: Vec<SpawnChance>,
 }
@@ -19,7 +20,6 @@ pub struct Character {
     pub symbol: Symbol,
     pub map_object: MapObject,
     pub character: cmtp::Character,
-    #[serde(default)]
     pub ai: Option<Ai>,
     #[serde(default)]
     spawn_chances: Vec<SpawnChance>,
@@ -32,7 +32,7 @@ struct SpawnChance {
 }
 
 pub struct ItemsLoader {
-    item_vals: HashMap<String, toml::Value>,
+    item_vals: HashMap<String, serde_json::Value>,
 }
 
 impl ItemsLoader {
@@ -40,9 +40,9 @@ impl ItemsLoader {
         let mut toml_save_state = String::new();
         let mut file = fs::File::open("assets/items.toml")?;
         file.read_to_string(&mut toml_save_state)?;
-        let item_vals: HashMap<String, toml::Value> = toml::from_str(&toml_save_state)?;
+        let item_vals: HashMap<String, serde_json::Value> = toml::from_str(&toml_save_state)?;
         for (id, item_val) in &item_vals {
-            item_val.clone().try_into::<Item>().map_err(|err| {
+            serde_json::from_value::<Item>(item_val.clone()).map_err(|err| {
                 io::Error::new(io::ErrorKind::InvalidData, format!("{}: {}", id, err))
             })?;
         }
@@ -53,7 +53,7 @@ impl ItemsLoader {
         self.item_vals
             .iter()
             .map(|(id, item_val)| {
-                let item: Item = item_val.clone().try_into().unwrap();
+                let item: Item = serde_json::from_value(item_val.clone()).unwrap();
                 let weight = weight_for_level(&item.spawn_chances, for_level);
                 (id.as_str(), weight)
             })
@@ -61,12 +61,12 @@ impl ItemsLoader {
     }
 
     pub fn get_clone(&self, id: &str) -> Item {
-        self.item_vals[id].clone().try_into().unwrap()
+        serde_json::from_value(self.item_vals[id].clone()).unwrap()
     }
 }
 
 pub struct CharactersLoader {
-    char_vals: HashMap<String, toml::Value>,
+    char_vals: HashMap<String, serde_json::Value>,
 }
 
 impl CharactersLoader {
@@ -74,11 +74,11 @@ impl CharactersLoader {
         let mut toml_save_state = String::new();
         let mut file = fs::File::open("assets/characters.toml")?;
         file.read_to_string(&mut toml_save_state)?;
-        let char_vals: HashMap<String, toml::Value> = toml::from_str(&toml_save_state)?;
+        let char_vals: HashMap<String, serde_json::Value> = toml::from_str(&toml_save_state)?;
         for (id, char_val) in &char_vals {
-            serde_json::from_str::<Character>(&serde_json::to_string_pretty(char_val)?).map_err(
-                |err| io::Error::new(io::ErrorKind::InvalidData, format!("{}: {}", id, err)),
-            )?;
+            serde_json::from_value::<Character>(char_val.clone()).map_err(|err| {
+                io::Error::new(io::ErrorKind::InvalidData, format!("{}: {}", id, err))
+            })?;
         }
         Ok(CharactersLoader { char_vals })
     }
@@ -87,8 +87,7 @@ impl CharactersLoader {
         self.char_vals
             .iter()
             .map(|(id, char_val)| {
-                let char: Character =
-                    serde_json::from_str(&serde_json::to_string_pretty(char_val).unwrap()).unwrap();
+                let char: Character = serde_json::from_value(char_val.clone()).unwrap();
                 let weight = weight_for_level(&char.spawn_chances, for_level);
                 (id.as_str(), weight)
             })
@@ -96,7 +95,7 @@ impl CharactersLoader {
     }
 
     pub fn get_clone(&self, id: &str) -> Character {
-        serde_json::from_str(&serde_json::to_string_pretty(&self.char_vals[id]).unwrap()).unwrap()
+        serde_json::from_value(self.char_vals[id].clone()).unwrap()
     }
 }
 

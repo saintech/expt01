@@ -1,7 +1,7 @@
 # A dummy item for example/test purposes only
 [dummy]
 map_object.name = "Dummy"
-item.kind = "Melee"
+item.kind = {"Ranged" = "SlingshotAmmo"}
 symbol.glyph = "\u00FF"
 symbol.color = { r = 79, g = 119, b = 84 }
 equipment.slot = "Hands" # equipment component is optional
@@ -29,15 +29,15 @@ from_level = 1
 probability_weight = 7
 
 
-[slingshot_ammo]
-map_object.name = "Bullet For Slingshot"
-item.kind = "SlingshotAmmo"
-symbol.glyph = "\u0091"
+[future_unknown_damager]
+map_object.name = "???"
+item.kind = "FutureUnknownDamager"
+symbol.glyph = "\u00FF"
 symbol.color = { r = 92, g = 87, b = 82 }
 
-[[slingshot_ammo.spawn_chances]]
+[[future_unknown_damager.spawn_chances]]
 from_level = 4
-probability_weight = 5
+probability_weight = 0
 
 
 [blasting_cartridge]
@@ -101,3 +101,20 @@ equipment.power_bonus = 0
 [[workwear.spawn_chances]]
 from_level = 8
 probability_weight = 3
+
+
+[steel_balls]
+map_object.name = "Steel Ball"
+item.kind = "Ammo"
+ammo.kind = "SlingshotAmmo"
+ammo.count = 999
+symbol.glyph = "\u0091"
+symbol.color = { r = 92, g = 87, b = 82 }
+equipment.slot = "Ammo"
+equipment.max_hp_bonus = 0
+equipment.defense_bonus = 0
+equipment.power_bonus = 2
+
+[[steel_balls.spawn_chances]]
+from_level = 1
+probability_weight = 0
