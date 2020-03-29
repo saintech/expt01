@@ -5,7 +5,7 @@ pub const SCREEN_WIDTH: i32 = 68;
 pub const SCREEN_HEIGHT: i32 = 35;
 // size of the map
 pub const MAP_WIDTH: i32 = 68;
-pub const MAP_HEIGHT: i32 = 30;
+pub const MAP_HEIGHT: i32 = 29;
 
 // sizes and coordinates relevant for the GUI
 pub const BAR_WIDTH: i32 = 20;
