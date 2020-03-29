@@ -66,14 +66,14 @@ character.xp = 100
 character.on_death = "Enemy"
 ai = "Basic"
 
-[[roach.spawn_chances]]
+[[rat.spawn_chances]]
 from_level = 3
 probability_weight = 1
 
-[[roach.spawn_chances]]
+[[rat.spawn_chances]]
 from_level = 5
 probability_weight = 3
 
-[[roach.spawn_chances]]
+[[rat.spawn_chances]]
 from_level = 7
 probability_weight = 6
