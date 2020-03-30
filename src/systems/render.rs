@@ -91,7 +91,7 @@ fn render_map_objects(world: &game::World, con: &mut impl console::Console) {
         con.set_default_foreground(color);
         let glyph = maybe_char
             .filter(|&char| char.looking_right && char.alive)
-            .and(Some((symbol.glyph as u8 + 1) as char))
+            .and(Some(std::char::from_u32(symbol.glyph as u32 + 1).unwrap()))
             .unwrap_or(glyph);
         con.put_char(x, y, glyph, console::BackgroundFlag::None);
     }
