@@ -107,7 +107,7 @@ probability_weight = 3
 map_object.name = "Steel Ball"
 item.kind = "Ammo"
 ammo.kind = "SlingshotAmmo"
-ammo.count = 999
+ammo.count = 20
 symbol.glyph = "\u0091"
 symbol.color = { r = 92, g = 87, b = 82 }
 equipment.slot = "Ammo"
@@ -116,5 +116,19 @@ equipment.defense_bonus = 0
 equipment.power_bonus = 2
 
 [[steel_balls.spawn_chances]]
-from_level = 1
-probability_weight = 0
+from_level = 3
+probability_weight = 5
+
+[slingshot]
+map_object.name = "Slingshot"
+item.kind = {"Ranged" = "SlingshotAmmo"}
+symbol.glyph = "\u0097"
+symbol.color = { r = 104, g = 127, b = 139 }
+equipment.slot = "Hands"
+equipment.max_hp_bonus = 0
+equipment.defense_bonus = 0
+equipment.power_bonus = 1
+
+[[slingshot.spawn_chances]]
+from_level = 2
+probability_weight = 4
